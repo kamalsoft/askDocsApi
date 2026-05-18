@@ -1,7 +1,7 @@
 # Skill: summarize_text
 
 ## Description
-Summarizes long text or search results into a concise version. This is useful for getting a high-level overview of complex payment workflows or multi-file search results.
+Summarizes long text or search results into a concise version. This is useful for getting a high-level overview of complex technical workflows or multi-file search results.
 
 ## Instructions
 - Condense the input text into its essential points.

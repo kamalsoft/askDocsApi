@@ -60,7 +60,7 @@ router.get('/v1/status', QueryController.getStatus);
  *                       type: array
  *                       items:
  *                         type: string
- *                         enum: [answer, summarize, compare]
+ *                         enum: [answer, summarize, compare, extract]
  *                       description: List of available query modes.
  *                 cache:
  *                   type: object
@@ -85,6 +85,12 @@ router.get('/v1/status', QueryController.getStatus);
  *                           size:
  *                             type: string
  *                           purpose:
+ *                             type: string
+ *                 models:
+ *                   type: object
+ *                   properties:
+ *                     embedding_model_version:
+ *                       type: string
  *                             type: string
  */
 router.get('/v1/metadata', QueryController.getMetadata);
@@ -198,7 +204,7 @@ router.patch('/v1/config', QueryController.updateConfig);
  *           example: "How does the cache logic handle a miss?"
  *         mode:
  *           type: string
- *           enum: [answer, summarize, compare]
+ *           enum: [answer, summarize, compare, extract]
  *           default: answer
  *     QueryResponse:
  *       type: object

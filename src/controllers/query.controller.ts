@@ -27,8 +27,9 @@ export class QueryController {
       cache: {
         downloaded_models: cachedModels
       },
-      available_models: {
-        registry: MODEL_REGISTRY
+      models: {
+        embedding_model_version: ENV.EMBEDDING_MODEL,
+        available_registry: MODEL_REGISTRY
       }
     });
   };
@@ -167,6 +168,13 @@ export class QueryController {
           sourceTitle: "Technical Documentation Summary",
           timings: [{ label: 'summarization', ms: Date.now() - inferenceStartTime }] as ChunkTiming[]
         };
+      } else if (mode === 'extract') {
+        // Using the extract_answer skill which connects to the LocalTransformerOrchestrator
+        synthesisResult = await globalRegistry.run('extract_answer', { 
+          question, 
+          contextChunks, 
+          correlationId 
+        });
       } else if (mode === 'compare') {
         synthesisResult = await globalRegistry.run('compare_versions', { 
           contextChunks,
@@ -189,7 +197,8 @@ export class QueryController {
         search_documents: globalRegistry.getSkillHash('search_documents') || 'no-md-file',
         generative_qa: globalRegistry.getSkillHash('generative_qa') || 'no-md-file',
         summarize_text: globalRegistry.getSkillHash('summarize_text') || 'no-md-file',
-        compare_versions: globalRegistry.getSkillHash('compare_versions') || 'no-md-file'
+        compare_versions: globalRegistry.getSkillHash('compare_versions') || 'no-md-file',
+        extract_answer: globalRegistry.getSkillHash('extract_answer') || 'no-md-file'
       };
 
       // 3. Validation Logic
@@ -208,7 +217,12 @@ export class QueryController {
           : sourceContext;
 
         // Adjust headers based on mode
-        const modeHeaders: Record<string, string> = { summarize: "Documentation Summary", compare: "Version Comparison", answer: canHighlight ? "Extracted Answer" : "AI Response" };
+        const modeHeaders: Record<string, string> = { 
+          summarize: "Documentation Summary", 
+          compare: "Version Comparison", 
+          extract: "Extracted Answer",
+          answer: canHighlight ? "Extracted Answer" : "AI Response" 
+        };
         const header = modeHeaders[mode] || modeHeaders.answer;
         const contextLabel = canHighlight ? "Context for clarification" : "Source Reference";
         

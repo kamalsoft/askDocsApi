@@ -27,7 +27,7 @@ export interface ChunkTiming {
   ms: number;
 }
 
-export const VALID_MODES = ['answer', 'summarize', 'compare'] as const;
+export const VALID_MODES = ['answer', 'summarize', 'compare', 'extract'] as const;
 export type QueryMode = typeof VALID_MODES[number];
 
 export interface QueryRequest {
