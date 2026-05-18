@@ -28,7 +28,10 @@ export class QueryController {
     const generativeReady = !!genSkill?.generator;
     const summarizationReady = !!sumSkill?.summarizer;
 
-    const isUp = storeExists && qaReady && embeddingReady && rerankerReady && generativeReady && summarizationReady;
+    // Verify if any skill is missing its instruction manual
+    const missingInstructions = globalRegistry.getMissingInstructions();
+
+    const isUp = storeExists && qaReady && embeddingReady && rerankerReady && generativeReady && summarizationReady && missingInstructions.length === 0;
 
     res.status(200).json({
       status: isUp ? "UP" : "DEGRADED",
@@ -38,6 +41,7 @@ export class QueryController {
       reranker_model: rerankerReady,
       generative_model: generativeReady,
       summarization_model: summarizationReady,
+      missing_instructions: missingInstructions,
       timestamp: new Date().toISOString()
     });
   };
@@ -62,6 +66,13 @@ export class QueryController {
       });
       
       const totalInferenceMs = Date.now() - inferenceStartTime;
+
+      // Collect instruction hashes for all core RAG pipeline skills
+      const instructionHashes: Record<string, string> = {
+        search_documents: globalRegistry.getSkillHash('search_documents') || 'no-md-file',
+        generative_qa: globalRegistry.getSkillHash('generative_qa') || 'no-md-file',
+        summarize_text: globalRegistry.getSkillHash('summarize_text') || 'no-md-file'
+      };
 
       // 3. Validation Logic
       let finalAnswer: string;
@@ -94,7 +105,8 @@ export class QueryController {
           timings: {
             total_inference_ms: totalInferenceMs,
             per_chunk: timings
-          }
+          },
+          instructionHashes
         }
       };
 

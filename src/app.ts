@@ -11,6 +11,7 @@ import { loggerMiddleware } from './middleware/logger.middleware';
 import { RetrievalEngine } from './core/engine';
 import { QueryController } from './controllers/query.controller';
 import { globalRegistry } from './skills/registry';
+
 const app = express();
 
 // Configure Transformers.js environment
@@ -65,7 +66,7 @@ app.listen(ENV.PORT, async () => {
 
   try {
     // Auto-discover and register skills from the src/skills directory
-    const skillsDir = path.join(__dirname, 'skills');
+    const skillsDir = path.join(__dirname, 'skills'); // This path is correct for the glob to find nested skills
     await globalRegistry.discoverSkills(skillsDir);
 
     // Eagerly load both models (Embedding + QA) during startup

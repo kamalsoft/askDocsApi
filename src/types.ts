@@ -41,6 +41,7 @@ export interface QueryResponse {
       total_inference_ms: number;
       per_chunk: ChunkTiming[];
     };
+    instructionHashes?: Record<string, string>;
   };
 }
 

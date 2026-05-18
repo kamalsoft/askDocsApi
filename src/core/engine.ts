@@ -135,9 +135,9 @@ export class RetrievalEngine {
       
       let score = 0;
 
-      queryTerms.forEach((term) => {
+      queryTerms.forEach((term: string) => {
         // Calculate term frequency (tf) in current document
-        const tf = docTokens.filter(t => t === term).length;
+        const tf = docTokens.filter((t: string) => t === term).length;
         if (tf === 0) { return; }
 
         // Retrieve pre-calculated IDF or fallback
@@ -150,30 +150,30 @@ export class RetrievalEngine {
 
       return { doc, score, index };
     })
-    .sort((a, b) => b.score - a.score);
+    .sort((a: any, b: any) => b.score - a.score);
  
     // --- Pass 2: Semantic Scoring (Cosine Similarity) ---
-    const semanticScored = store.chunks.map((doc, index) => {
+    const semanticScored = store.chunks.map((doc: DocumentChunk, index: number) => {
       let score = 0;
       if (doc.embedding && doc.embedding.length > 0) {
         score = this.cosineSimilarity(questionEmbedding, doc.embedding);
       }
       return { doc, score, index };
     })
-    .sort((a, b) => b.score - a.score);
+    .sort((a: any, b: any) => b.score - a.score);
  
     // --- Pass 3: Combine using Reciprocal Rank Fusion (RRF) ---
     // RRF score = sum( 1 / (k + rank) )
     const rrfMap = new Map<string | number, { doc: DocumentChunk; rrfScore: number; index: number }>();
     const k = ENV.RRF_K;
 
-    bm25Scored.forEach((item, rank) => {
+    bm25Scored.forEach((item: any, rank: number) => {
       const current = rrfMap.get(item.doc.id) || { doc: item.doc, rrfScore: 0, index: item.index };
       current.rrfScore += 1 / (k + rank + 1); // Ensure rank is treated as number
       rrfMap.set(item.doc.id, current);
     });
 
-    semanticScored.forEach((item, rank) => {
+    semanticScored.forEach((item: any, rank: number) => {
       const current = rrfMap.get(item.doc.id) || { doc: item.doc, rrfScore: 0, index: item.index };
       current.rrfScore += 1 / (k + rank + 1); // Ensure rank is treated as number
       rrfMap.set(item.doc.id, current);

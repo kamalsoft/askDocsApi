@@ -103,7 +103,7 @@ export class LocalTransformerOrchestrator {
       });
       const chunkDuration = Date.now() - chunkStartTime;
       
-      timings.push({ title: context.title, duration_ms: chunkDuration });
+      timings.push({ label: context.title, ms: chunkDuration });
       console.log(`[${correlationId}] Chunk ${i + 1}/${limitedContexts.length} ("${context.title}") inference took ${chunkDuration}ms (score: ${result.score.toFixed(4)})`);
 
       // Update if this chunk provides a higher confidence answer

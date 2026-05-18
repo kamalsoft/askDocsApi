@@ -1,7 +1,7 @@
-import { BaseSkill, SkillDefinition } from '../types';
+import { BaseSkill, SkillDefinition } from '../../types';
 import { pipeline } from '@huggingface/transformers';
-import { ENV } from '../config/env';
-
+import { ENV } from '../../config/env';
+// Logic remains the same, but the path change validates the '../../types' import
 export class GenerativeQASkill extends BaseSkill {
     readonly definition: SkillDefinition = {
         name: 'generative_qa',

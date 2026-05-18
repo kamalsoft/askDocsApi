@@ -1,6 +1,6 @@
-import { BaseSkill, SkillDefinition } from '../types';
-import { pipeline, TextStreamer } from '@huggingface/transformers';
-import { ENV } from '../config/env';
+import { BaseSkill, SkillDefinition } from '../../types';
+import { pipeline } from '@huggingface/transformers';
+import { ENV } from '../../config/env';
 
 export class SummarizationSkill extends BaseSkill {
     readonly definition: SkillDefinition = {
@@ -47,7 +47,6 @@ export class SummarizationSkill extends BaseSkill {
     async execute(args: { text: string | any[]; maxLength?: number; streamer?: any }): Promise<any> {
         let { text, maxLength = 100, streamer } = args;
 
-        // If an array is passed (e.g. search results), join the text components
         if (Array.isArray(text)) {
             text = text
                 .map(c => typeof c === 'string' ? c : (c?.text || ''))
@@ -62,13 +61,12 @@ export class SummarizationSkill extends BaseSkill {
 
         await this.initialize();
 
-        // Strengthen the response by using a clearer instruction prefix for the T5 model
         const strengthenedPrompt = `summarize: ${text}`;
 
         const output = await this.summarizer(strengthenedPrompt, {
             max_new_tokens: maxLength,
             chunk_length: 1024,
-            streamer: streamer, // Pass the streamer to the underlying model
+            streamer: streamer,
         });
 
         return {

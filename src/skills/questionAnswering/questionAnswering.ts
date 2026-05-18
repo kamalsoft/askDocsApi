@@ -1,5 +1,5 @@
-import { BaseSkill, SkillDefinition } from '../types';
-import { LocalTransformerOrchestrator } from '../core/transformerEngine';
+import { BaseSkill, SkillDefinition } from '../../types';
+import { LocalTransformerOrchestrator } from '../../core/transformerEngine';
 
 export class QuestionAnsweringSkill extends BaseSkill {
     readonly definition: SkillDefinition = {
@@ -25,7 +25,7 @@ export class QuestionAnsweringSkill extends BaseSkill {
         // Defensive check: Filter out invalid entries and extract text from objects if necessary
         const validChunks = contextChunks?.filter(c => {
             const text = typeof c === 'string' ? c : c?.text;
-            return typeof text === 'string' && text.trim().length > 0; // Ensure text is a non-empty string
+            return typeof text === 'string' && text.trim().length > 0;
         }) || [];
 
         // Strengthen the query by ensuring it ends with a question mark and is trimmed
