@@ -3,16 +3,106 @@ import fs from 'fs';
 import { ENV } from '../config/env';
 import { RetrievalEngine } from '../core/engine';
 import { LocalTransformerOrchestrator } from '../core/transformerEngine';
-import { QueryRequest, QueryResponse } from '../types';
+import { QueryRequest, QueryResponse, VALID_MODES, ChunkTiming } from '../types';
 import { globalRegistry } from '../skills/registry';
+import { MODEL_REGISTRY } from '../config/models';
 
 export class QueryController {
+
+  public static getMetadata = async (req: Request, res: Response): Promise<void> => {
+    let cachedModels: string[] = [];
+    const cacheDir = ENV.MODEL_CACHE_DIR;
+
+    if (fs.existsSync(cacheDir)) {
+      const entries = fs.readdirSync(cacheDir, { withFileTypes: true });
+      cachedModels = entries
+        .filter(dirent => dirent.isDirectory() && dirent.name.startsWith('models--'))
+        .map(dirent => dirent.name.replace(/^models--/, '').replace(/--/g, '/'));
+    }
+
+    res.status(200).json({
+      enums: {
+        modes: VALID_MODES
+      },
+      cache: {
+        downloaded_models: cachedModels
+      },
+      available_models: {
+        registry: MODEL_REGISTRY
+      }
+    });
+  };
+
   public static getStatus = async (req: Request, res: Response): Promise<void> => {
     res.status(200).json({
       model: ENV.TRANSFORMER_MODEL,
       ready: LocalTransformerOrchestrator.isReady(),
       threads: ENV.ONNX_THREADS,
       cacheDir: ENV.MODEL_CACHE_DIR
+    });
+  };
+
+  public static getConfig = async (req: Request, res: Response): Promise<void> => {
+    res.status(200).json({
+      server: {
+        port: ENV.PORT,
+        node_env: ENV.NODE_ENV
+      },
+      models: {
+        transformer_model: ENV.TRANSFORMER_MODEL,
+        embedding_model: ENV.EMBEDDING_MODEL,
+        rerank_model: ENV.RERANK_MODEL,
+        generative_model: ENV.GENERATIVE_MODEL,
+        summarization_model: ENV.SUMMARIZATION_MODEL
+      },
+      paths: {
+        model_cache_dir: ENV.MODEL_CACHE_DIR,
+        vector_store_path: ENV.VECTOR_STORE_PATH
+      },
+      onnx_settings: {
+        onnx_threads: ENV.ONNX_THREADS,
+        embedding_quantized: ENV.EMBEDDING_QUANTIZED,
+        rerank_quantized: ENV.RERANK_QUANTIZED,
+        generative_quantized: ENV.GENERATIVE_QUANTIZED,
+        transformer_quantized: ENV.TRANSFORMER_QUANTIZED
+      },
+      inference_settings: {
+        max_inference_chunks: ENV.MAX_INFERENCE_CHUNKS,
+        model_init_timeout: ENV.MODEL_INIT_TIMEOUT
+      },
+      search_optimization: {
+        bm25_threshold: ENV.BM25_THRESHOLD,
+        bm25_weight: ENV.BM25_WEIGHT,
+        semantic_weight: ENV.SEMANTIC_WEIGHT,
+        rrf_k: ENV.RRF_K
+      },
+      generative_qa_prompts: {
+        generative_qa_prompt: ENV.GENERATIVE_QA_PROMPT,
+        generative_qa_fallback: ENV.GENERATIVE_QA_FALLBACK
+        },
+        available_models: {
+          registry: MODEL_REGISTRY
+      },
+      reranking: {
+        rerank_top_n: ENV.RERANK_TOP_N
+      },
+      secrets: {
+        hf_token_present: !!ENV.HF_TOKEN // Don't expose the actual token
+      }
+    });
+  };
+
+  public static updateConfig = async (req: Request, res: Response): Promise<void> => {
+    const updates = req.body;
+    // Only allow updating existing keys in the ENV object
+    for (const key in updates) {
+      if (Object.prototype.hasOwnProperty.call(ENV, key)) {
+        (ENV as any)[key] = updates[key];
+      }
+    }
+    res.status(200).json({ 
+      message: "Configuration updated in-memory successfully. Note: Model-related changes may require a restart to re-initialize pipelines.", 
+      currentConfig: ENV 
     });
   };
 
@@ -48,7 +138,8 @@ export class QueryController {
 
   public static handleQuery = async (req: Request, res: Response): Promise<void> => {
     try {
-      const { question }: QueryRequest = req.body;
+      const { question, mode = 'answer' }: QueryRequest = req.body;
+      
       const correlationId = (req as any).correlationId;
 
       // 1. Skill-based Document Retrieval
@@ -57,13 +148,39 @@ export class QueryController {
         correlationId 
       });
 
-      // 2. Skill-based Local Transformer Synthesis
+      // 2. Skill-based Synthesis, Summarization, or Comparison
       const inferenceStartTime = Date.now();
-      const { answer, score, sourceContext, sourceTitle, timings } = await globalRegistry.run('generative_qa', { 
-        question, 
-        contextChunks, 
-        correlationId 
-      });
+      let synthesisResult;
+
+      if (mode === 'summarize') {
+        const { summary } = await globalRegistry.run('summarize_text', {
+          text: contextChunks,
+          correlationId
+        });
+
+        synthesisResult = {
+          answer: summary,
+          score: 1.0, // Summaries are considered high confidence by default
+          sourceContext: contextChunks.map((c: any) =>
+            typeof c === 'string' ? c : (c?.text || '')
+          ).join('\n---\n'),
+          sourceTitle: "Technical Documentation Summary",
+          timings: [{ label: 'summarization', ms: Date.now() - inferenceStartTime }] as ChunkTiming[]
+        };
+      } else if (mode === 'compare') {
+        synthesisResult = await globalRegistry.run('compare_versions', { 
+          contextChunks,
+          correlationId 
+        });
+      } else {
+        synthesisResult = await globalRegistry.run('generative_qa', { 
+          question, 
+          contextChunks, 
+          correlationId 
+        });
+      }
+      
+      const { answer, score, sourceContext, sourceTitle, timings } = synthesisResult;
       
       const totalInferenceMs = Date.now() - inferenceStartTime;
 
@@ -71,7 +188,8 @@ export class QueryController {
       const instructionHashes: Record<string, string> = {
         search_documents: globalRegistry.getSkillHash('search_documents') || 'no-md-file',
         generative_qa: globalRegistry.getSkillHash('generative_qa') || 'no-md-file',
-        summarize_text: globalRegistry.getSkillHash('summarize_text') || 'no-md-file'
+        summarize_text: globalRegistry.getSkillHash('summarize_text') || 'no-md-file',
+        compare_versions: globalRegistry.getSkillHash('compare_versions') || 'no-md-file'
       };
 
       // 3. Validation Logic
@@ -89,7 +207,9 @@ export class QueryController {
           ? sourceContext.replace(new RegExp(`(${escapedAnswer})`, 'gi'), '**$1**')
           : sourceContext;
 
-        const header = canHighlight ? "Extracted Answer" : "AI Summary";
+        // Adjust headers based on mode
+        const modeHeaders: Record<string, string> = { summarize: "Documentation Summary", compare: "Version Comparison", answer: canHighlight ? "Extracted Answer" : "AI Response" };
+        const header = modeHeaders[mode] || modeHeaders.answer;
         const contextLabel = canHighlight ? "Context for clarification" : "Source Reference";
         
         // Enhance the short extractive answer with the surrounding context for clarification

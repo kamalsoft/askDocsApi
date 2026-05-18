@@ -27,8 +27,12 @@ export interface ChunkTiming {
   ms: number;
 }
 
+export const VALID_MODES = ['answer', 'summarize', 'compare'] as const;
+export type QueryMode = typeof VALID_MODES[number];
+
 export interface QueryRequest {
-  question: string;
+  question: string; // The user's question or query
+  mode?: QueryMode;
 }
 
 export interface QueryResponse {
@@ -38,7 +42,7 @@ export interface QueryResponse {
   correlationId: string;
   metadata: {
     timings: {
-      total_inference_ms: number;
+      total_inference_ms: number; // Total time taken for the RAG pipeline
       per_chunk: ChunkTiming[];
     };
     instructionHashes?: Record<string, string>;

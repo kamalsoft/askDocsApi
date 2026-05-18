@@ -1,7 +1,7 @@
 import { BaseSkill, SkillDefinition } from '../../types';
 import { pipeline } from '@huggingface/transformers';
 import { ENV } from '../../config/env';
-// Logic remains the same, but the path change validates the '../../types' import
+
 export class GenerativeQASkill extends BaseSkill {
     readonly definition: SkillDefinition = {
         name: 'generative_qa',
@@ -30,21 +30,13 @@ export class GenerativeQASkill extends BaseSkill {
                 session_options: {
                     intraOpNumThreads: ENV.ONNX_THREADS,
                 },
-                progress_callback: (info) => {
-                    if (info.status === 'progress') {
-                        process.stdout.write(
-                            `\r[GenerativeQA] Downloading ${info.file}: ${info.progress.toFixed(2)}%   `
-                        );
-                    } else if (info.status === 'done') {
-                        process.stdout.write(`\n[GenerativeQA] Download complete: ${info.file}\n`);
-                    }
-                }
+                device: 'cpu'
             });
         }
     }
 
-    async execute(args: { question: string; contextChunks: any[]; streamer?: any }): Promise<any> {
-        const { question, contextChunks, streamer } = args;
+    async execute(args: { question: string; contextChunks: any[]; correlationId?: string; streamer?: any }): Promise<any> {
+        const { question, contextChunks, correlationId, streamer } = args;
         const startTime = Date.now();
 
         // Process context chunks into a single readable string
@@ -76,8 +68,6 @@ export class GenerativeQASkill extends BaseSkill {
             streamer: streamer,
         });
 
-        // Defensive check to prevent "Cannot read properties of undefined (reading 'data')" 
-        // if the generator returns an unexpected empty result
         if (!output || !output[0]) {
             return {
                 answer: "I encountered an error while generating an answer. Please try again.",

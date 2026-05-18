@@ -1,7 +1,7 @@
 import { BaseSkill, SkillDefinition } from '../../types';
 import { RetrievalEngine } from '../../core/engine';
 import { ENV } from '../../config/env';
-// Logic remains the same, path change fixes imports.
+
 export class DocumentSearchSkill extends BaseSkill {
     readonly definition: SkillDefinition = {
         name: 'search_documents',
