@@ -7,24 +7,24 @@ A modular RAG (Retrieval-Augmented Generation) API for querying technical Markdo
 
 Explore our detailed industry-standard guides and specifications:
 
-*   🚀 [Overview](docs/overview.md) – Architecture, Base URLs, and Environments.
-*   🔐 [Authentication](docs/authentication.md) – Security protocols and header requirements.
-*   📝 [Conventions](docs/conventions.md) – Response formats, rate limits, and error models.
-*   📍 [Endpoints](docs/endpoints.md) – Full API reference and interactive examples.
-*   📦 [Models](docs/models.md) – Request and Response data schemas.
-*   🪝 [Webhooks](docs/webhooks.md) – Real-time event notifications (Alpha).
-*   💻 [SDKs & Examples](docs/sdks.md) – Implementation guides in Python, JS, Java, and more.
-*   🧪 [Testing](docs/testing.md) – Sandbox usage and sample data.
-*   📜 [Changelog](docs/changelog.md) – Version history and migration notes.
-*   📖 [Glossary](docs/glossary.md) – Domain terms and acronyms.
+*   🚀 Overview – Architecture, Base URLs, and Environments.
+*   🔐 Authentication – Security protocols and header requirements.
+*   📝 Conventions – Response formats, rate limits, and error models.
+*   📍 Endpoints – Full API reference and interactive examples.
+*   📦 Models – Request and Response data schemas.
+*   🪝 Webhooks – Real-time event notifications (Alpha).
+*   💻 SDKs & Examples – Implementation guides in Python, JS, Java, and more.
+*   🧪 Testing – Sandbox usage and sample data.
+*   📜 Changelog – Version history and migration notes.
+*   📖 Glossary – Domain terms and acronyms.
 
 ---
 
 ## 📋 Table of Contents
-- [Quick Start](#-quick-start-local-setup)
-- [Usage Examples](#-usage-examples)
-- [System Monitoring](#-system-monitoring)
-- [Technical Details](#%EF%B8%8F-technical-details)
+- Quick Start
+- Usage Examples
+- System Monitoring
+- Technical Details
 
 ---
 
@@ -180,14 +180,6 @@ Key environment variables define the operational parameters of the API:
 -   `MODEL_CACHE_DIR`: Local directory where models are cached (default: `./models-cache`).
 -   `ONNX_THREADS`: Number of threads for ONNX runtime operations (default: `4`).
 -   `VECTOR_STORE_PATH`: Path to the JSON file storing vectorized documents (default: `./vector-store/docs.json`).
--   `HF_TOKEN`: (Optional) Hugging Face Hub token for accessing private or gated models.
--   `TRANSFORMER_QUANTIZED`: Use 8-bit quantization for the QA model (default: `false`).
--   `EMBEDDING_QUANTIZED`: Use 8-bit quantization for embeddings (default: `false`).
--   `RERANK_QUANTIZED`: Use 8-bit quantization for the reranker (default: `false`).
--   `RRF_K`: Constant for Reciprocal Rank Fusion (default: `60`).
--   `RERANK_TOP_N`: Number of candidates passed to the cross-encoder for re-ranking (default: `10`).
--   `MAX_INFERENCE_CHUNKS`: Maximum number of document chunks to process per extractive query (default: `3`).
--   `MODEL_INIT_TIMEOUT`: Timeout in milliseconds for skill/model initialization.
 
 ### Model Registry
 
@@ -203,5 +195,46 @@ The `src/skills/registry.ts` module is responsible for discovering, registering,
 -   **LocalTransformerOrchestrator (`src/core/transformerEngine.ts`):** Orchestrates the loading and execution of local transformer models for tasks like extractive question answering. It ensures models are loaded from the local cache and applies ONNX optimizations.
 
 ---
+# API Overview
+
+The **askDocs API** is a high-performance, local-first Retrieval-Augmented Generation (RAG) engine designed specifically for technical Markdown documentation. It allows developers to query complex documentation sets using natural language and receive synthesized, grounded answers.
+
+## Purpose
+Technical documentation is often fragmented and difficult to navigate. This API bridges the gap by using semantic search and local Large Language Models (LLMs) to provide:
+- Direct answers to factual questions.
+- Topic summarization across multiple files.
+- Version discrepancy analysis.
+
+## Architecture
+Unlike traditional RAG systems that rely on cloud-based LLM providers (e.g., OpenAI), `askDocs` performs all inference **in-process** on the host machine.
+
+### Key Components
+- **Retrieval Engine**: Uses a hybrid approach combining BM25 (keyword) and MiniLM (semantic) search.
+- **Transformer Orchestrator**: Manages ONNX-optimized models for extraction and generation.
+- **Skill Registry**: A modular framework that routes queries to specialized logic "specialists" based on the requested interaction mode.
+
+## Base URLs
+| Environment | URL |
+| :--- | :--- |
+| **Local Development** | `http://localhost:5001` |
+| **Production (example)** | `https://api.askdocs.io` |
+
+## Versioning
+We follow Semantic Versioning (SemVer).
+- Current Version: `1.0.0`
+- The version is prefixed in the path: `/api/v1/`
+
+## Environments
+The API behavior is controlled via the `NODE_ENV` environment variable:
+- `development`: Detailed logging, interactive Swagger docs enabled, and verbose error stacks.
+- `production`: Optimized performance, thread-safe ONNX execution, and sanitized error responses.
+
+---
+### 🔗 Related Links
+*   🔐 Authentication
+*   📍 Endpoints
+*   📝 Conventions
+
+```
 
 ```

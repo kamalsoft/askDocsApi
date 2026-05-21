@@ -7,24 +7,24 @@ A modular RAG (Retrieval-Augmented Generation) API for querying technical Markdo
 
 Explore our detailed industry-standard guides and specifications:
 
-*   🚀 [Overview](docs/overview.md) – Architecture, Base URLs, and Environments.
-*   🔐 [Authentication](docs/authentication.md) – Security protocols and header requirements.
-*   📝 [Conventions](docs/conventions.md) – Response formats, rate limits, and error models.
-*   📍 [Endpoints](docs/endpoints.md) – Full API reference and interactive examples.
-*   📦 [Models](docs/models.md) – Request and Response data schemas.
-*   🪝 [Webhooks](docs/webhooks.md) – Real-time event notifications (Alpha).
-*   💻 [SDKs & Examples](docs/sdks.md) – Implementation guides in Python, JS, Java, and more.
-*   🧪 [Testing](docs/testing.md) – Sandbox usage and sample data.
-*   📜 [Changelog](docs/changelog.md) – Version history and migration notes.
-*   📖 [Glossary](docs/glossary.md) – Domain terms and acronyms.
+*   🚀 Overview – Architecture, Base URLs, and Environments.
+*   🔐 Authentication – Security protocols and header requirements.
+*   📝 Conventions – Response formats, rate limits, and error models.
+*   📍 Endpoints – Full API reference and interactive examples.
+*   📦 Models – Request and Response data schemas.
+*   🪝 Webhooks – Real-time event notifications (Alpha).
+*   💻 SDKs & Examples – Implementation guides in Python, JS, Java, and more.
+*   🧪 Testing – Sandbox usage and sample data.
+*   📜 Changelog – Version history and migration notes.
+*   📖 Glossary – Domain terms and acronyms.
 
 ---
 
 ## 📋 Table of Contents
-- [Quick Start](#-quick-start-local-setup)
-- [Usage Examples](#-usage-examples)
-- [System Monitoring](#-system-monitoring)
-- [Technical Details](#%EF%B8%8F-technical-details)
+- Quick Start
+- Usage Examples
+- System Monitoring
+- Technical Details
 
 ---
 
@@ -180,14 +180,6 @@ Key environment variables define the operational parameters of the API:
 -   `MODEL_CACHE_DIR`: Local directory where models are cached (default: `./models-cache`).
 -   `ONNX_THREADS`: Number of threads for ONNX runtime operations (default: `4`).
 -   `VECTOR_STORE_PATH`: Path to the JSON file storing vectorized documents (default: `./vector-store/docs.json`).
--   `HF_TOKEN`: (Optional) Hugging Face Hub token for accessing private or gated models.
--   `TRANSFORMER_QUANTIZED`: Use 8-bit quantization for the QA model (default: `false`).
--   `EMBEDDING_QUANTIZED`: Use 8-bit quantization for embeddings (default: `false`).
--   `RERANK_QUANTIZED`: Use 8-bit quantization for the reranker (default: `false`).
--   `RRF_K`: Constant for Reciprocal Rank Fusion (default: `60`).
--   `RERANK_TOP_N`: Number of candidates passed to the cross-encoder for re-ranking (default: `10`).
--   `MAX_INFERENCE_CHUNKS`: Maximum number of document chunks to process per extractive query (default: `3`).
--   `MODEL_INIT_TIMEOUT`: Timeout in milliseconds for skill/model initialization.
 
 ### Model Registry
 
@@ -203,5 +195,154 @@ The `src/skills/registry.ts` module is responsible for discovering, registering,
 -   **LocalTransformerOrchestrator (`src/core/transformerEngine.ts`):** Orchestrates the loading and execution of local transformer models for tasks like extractive question answering. It ensures models are loaded from the local cache and applies ONNX optimizations.
 
 ---
+# API Overview
+
+The **askDocs API** is a high-performance, local-first Retrieval-Augmented Generation (RAG) engine designed specifically for technical Markdown documentation. It allows developers to query complex documentation sets using natural language and receive synthesized, grounded answers.
+
+## Purpose
+Technical documentation is often fragmented and difficult to navigate. This API bridges the gap by using semantic search and local Large Language Models (LLMs) to provide:
+- Direct answers to factual questions.
+- Topic summarization across multiple files.
+- Version discrepancy analysis.
+
+## Architecture
+Unlike traditional RAG systems that rely on cloud-based LLM providers (e.g., OpenAI), `askDocs` performs all inference **in-process** on the host machine.
+
+### Key Components
+- **Retrieval Engine**: Uses a hybrid approach combining BM25 (keyword) and MiniLM (semantic) search.
+- **Transformer Orchestrator**: Manages ONNX-optimized models for extraction and generation.
+- **Skill Registry**: A modular framework that routes queries to specialized logic "specialists" based on the requested interaction mode.
+
+## Base URLs
+| Environment | URL |
+| :--- | :--- |
+| **Local Development** | `http://localhost:5001` |
+| **Production (example)** | `https://api.askdocs.io` |
+
+## Versioning
+We follow Semantic Versioning (SemVer).
+- Current Version: `1.0.0`
+- The version is prefixed in the path: `/api/v1/`
+
+## Environments
+The API behavior is controlled via the `NODE_ENV` environment variable:
+- `development`: Detailed logging, interactive Swagger docs enabled, and verbose error stacks.
+- `production`: Optimized performance, thread-safe ONNX execution, and sanitized error responses.
+
+---
+
+### 🔗 Related Links
+- Authentication
+- Endpoints
+- Technical Conventions
+# Authentication
+
+All requests to the askDocs API must be authenticated using an API Key. This ensures secure access to your document vector stores and protects system resources.
+
+## API Key Security
+Your API key should be kept confidential. Do not share it in public repositories or client-side code that can be inspected by users.
+
+### Required Headers
+Authentication is handled via the following custom header:
+
+| Header | Value | Description |
+| :--- | :--- | :--- |
+| `X-API-Key` | `YOUR_SECRET_KEY` | Your unique API access token. |
+
+## Example Authenticated Request
+
+```bash
+curl -X GET http://localhost:5001/api/v1/status \
+  -H "X-API-Key: 12345-abcde-67890"
+```
+
+## Token Lifecycle
+- **Issuance**: Keys are currently managed via the `.env` configuration or your administrative dashboard.
+- **Expiration**: Keys do not expire automatically but can be revoked by the system administrator.
+- **Revocation**: If a key is compromised, update your environment configuration and restart the service immediately.
+
+## Auth Error Responses
+
+### 401 Unauthorized
+Returned if the `X-API-Key` header is missing or contains an invalid value.
+```json
+{
+  "error": "Unauthorized",
+  "message": "Missing or invalid API key in X-API-Key header."
+}
+```
+
+---
+
+### 🔗 Related Links
+- API Endpoints
+- Error Models
+```
+# Conventions
+
+This document outlines the standard protocols and formats used by the askDocs API to ensure consistency across all integrations.
+
+## Request/Response Formats
+- **Content-Type**: All requests and responses use `application/json`.
+- **Encoding**: UTF-8.
+- **Timestamp Format**: ISO 8601 (`YYYY-MM-DDTHH:mm:ss.sssZ`).
+
+## Pagination
+For endpoints returning lists (e.g., search results), we use offset-based pagination.
+- `limit`: Maximum number of items to return (default: 10, max: 100).
+- `offset`: Number of items to skip (default: 0).
+
+## Sorting and Filtering
+Query parameters are used for sorting and filtering:
+- `sort`: Field name (e.g., `sort=date`). Prefix with `-` for descending (e.g., `sort=-score`).
+- `filter`: Key-value pairs (e.g., `category=docs`).
+
+## Rate Limits
+To maintain service stability, the following limits apply:
+- **Developer Tier**: 100 requests per minute.
+- **Production Tier**: 5,000 requests per minute.
+
+Exceeding these limits will result in a `429 Too Many Requests` response.
+
+## Idempotency
+All `GET` and `HEAD` requests are naturally idempotent. `POST` requests to the `/query` endpoint are also idempotent as they do not modify state; however, they are not cached by the server to ensure fresh documentation analysis.
+
+## Error Model
+The API uses standard HTTP status codes. Every error response follows this schema:
+
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| `code` | `string` | A unique machine-readable error code. |
+| `message` | `string` | A human-readable description of the error. |
+| `details` | `object` | (Optional) Additional context, such as validation errors. |
+
+### Example Validation Error (400)
+```json
+{
+  "code": "VALIDATION_FAILED",
+  "message": "The request body is malformed.",
+  "details": {
+    "field": "mode",
+    "reason": "Must be one of: answer, summarize, compare"
+  }
+}
+```
+
+### Common Status Codes
+- `200 OK`: Success.
+- `400 Bad Request`: Validation failure or malformed JSON.
+- `401 Unauthorized`: Authentication missing or invalid.
+- `404 Not Found`: Resource or endpoint does not exist.
+- `429 Too Many Requests`: Rate limit exceeded.
+- `500 Internal Server Error`: Unexpected server-side failure.
+
+---
+### 🔗 Related Links
+- Data Models
+- Authentication
+
+```
+
+```
 
 ```
