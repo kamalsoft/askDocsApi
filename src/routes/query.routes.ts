@@ -51,47 +51,7 @@ router.get('/v1/status', QueryController.getStatus);
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 enums:
- *                   type: object
- *                   properties:
- *                     modes:
- *                       type: array
- *                       items:
- *                         type: string
- *                         enum: [answer, summarize, compare, extract]
- *                       description: List of available query modes.
- *                 cache:
- *                   type: object
- *                   properties:
- *                     downloaded_models:
- *                       type: array
- *                       items:
- *                         type: string
- *                       description: List of models currently downloaded and cached locally.
- *                 available_models:
- *                   type: object
- *                   properties:
- *                     registry:
- *                       type: array
- *                       items:
- *                         type: object
- *                         properties:
- *                           id:
- *                             type: string
- *                           checksum:
- *                             type: string
- *                           size:
- *                             type: string
- *                           purpose:
- *                             type: string
- *                 models:
- *                   type: object
- *                   properties:
- *                     embedding_model_version:
- *                       type: string
- *                             type: string
+ *               $ref: '#/components/schemas/MetadataResponse'
  */
 router.get('/v1/metadata', QueryController.getMetadata);
 
@@ -107,71 +67,7 @@ router.get('/v1/metadata', QueryController.getMetadata);
  *         content:
  *           application/json:
  *             schema:
- *               type: object
- *               properties:
- *                 server:
- *                   type: object
- *                   properties:
- *                     port: { type: number }
- *                     node_env: { type: string }
- *                 models:
- *                   type: object
- *                   properties:
- *                     transformer_model: { type: string }
- *                     embedding_model: { type: string }
- *                     rerank_model: { type: string }
- *                     generative_model: { type: string }
- *                     summarization_model: { type: string }
- *                 paths:
- *                   type: object
- *                   properties:
- *                     model_cache_dir: { type: string }
- *                     vector_store_path: { type: string }
- *                 onnx_settings:
- *                   type: object
- *                   properties:
- *                     onnx_threads: { type: number }
- *                     embedding_quantized: { type: boolean }
- *                     rerank_quantized: { type: boolean }
- *                     generative_quantized: { type: boolean }
- *                     transformer_quantized: { type: boolean }
- *                 inference_settings:
- *                   type: object
- *                   properties:
- *                     max_inference_chunks: { type: number }
- *                     model_init_timeout: { type: number }
- *                 search_optimization:
- *                   type: object
- *                   properties:
- *                     bm25_threshold: { type: number }
- *                     bm25_weight: { type: number }
- *                     semantic_weight: { type: number }
- *                     rrf_k: { type: number }
- *                 generative_qa_prompts:
- *                   type: object
- *                   properties:
- *                     generative_qa_prompt: { type: string }
- *                     generative_qa_fallback: { type: string }
- *                 available_models:
- *                   type: object
- *                   properties:
- *                     registry:
- *                       type: array
- *                       items:
- *                         type: object
- *                         properties:
- *                           id: { type: string }
- *                           checksum: { type: string }
- *                           size: { type: string }
- *                           purpose: { type: string }
- *                 reranking:
- *                   type: object
- *                   properties:
- *                     rerank_top_n: { type: number }
- *                 secrets:
- *                   type: object
- *                   properties:
- *                     hf_token_present: { type: boolean }
+ *               $ref: '#/components/schemas/ConfigResponse'
  */
 router.get('/v1/config', QueryController.getConfig);
 
@@ -186,7 +82,7 @@ router.get('/v1/config', QueryController.getConfig);
  *       content:
  *         application/json:
  *           schema:
- *             type: object
+ *             $ref: '#/components/schemas/ConfigResponse'
  */
 router.patch('/v1/config', QueryController.updateConfig);
 
@@ -220,16 +116,123 @@ router.patch('/v1/config', QueryController.updateConfig);
  *           items:
  *             type: object
  *             properties:
- *               source_file:
- *                 type: string
- *               source_title:
- *                 type: string
- *               snippet:
- *                 type: string
+ *               source_file: { type: string }
+ *               source_title: { type: string }
+ *               snippet: { type: string }
  *         metadata:
  *           type: object
  *           properties:
  *             timings:
+ *               $ref: '#/components/schemas/Timings'
+ *
+ *     MetadataResponse:
+ *       type: object
+ *       properties:
+ *         enums:
+ *           type: object
+ *           properties:
+ *             modes:
+ *               type: array
+ *               items:
+ *                 type: string
+ *                 enum: [answer, summarize, compare, extract]
+ *         cache:
+ *           type: object
+ *           properties:
+ *             downloaded_models:
+ *               type: array
+ *               items:
+ *                 type: string
+ *         available_models:
+ *           type: object
+ *           properties:
+ *             registry:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/ModelRegistryItem'
+ *         models:
+ *           type: object
+ *           properties:
+ *             embedding_model_version:
+ *               type: string
+ *
+ *     ConfigResponse:
+ *       type: object
+ *       properties:
+ *         server:
+ *           type: object
+ *           properties:
+ *             port:
+ *               type: number
+ *             node_env:
+ *               type: string
+ *         models:
+ *           type: object
+ *           properties:
+ *             transformer_model: { type: string }
+ *             embedding_model: { type: string }
+ *             rerank_model: { type: string }
+ *             generative_model: { type: string }
+ *             summarization_model: { type: string }
+ *         paths:
+ *           type: object
+ *           properties:
+ *             model_cache_dir: { type: string }
+ *             vector_store_path: { type: string }
+ *         onnx_settings:
+ *           type: object
+ *           properties:
+ *             onnx_threads: { type: number }
+ *             embedding_quantized: { type: boolean }
+ *             rerank_quantized: { type: boolean }
+ *             generative_quantized: { type: boolean }
+ *             transformer_quantized: { type: boolean }
+ *         inference_settings:
+ *           type: object
+ *           properties:
+ *             max_inference_chunks: { type: number }
+ *             model_init_timeout: { type: number }
+ *         search_optimization:
+ *           type: object
+ *           properties:
+ *             bm25_threshold: { type: number }
+ *             bm25_weight: { type: number }
+ *             semantic_weight: { type: number }
+ *             rrf_k: { type: number }
+ *         generative_qa_prompts:
+ *           type: object
+ *           properties:
+ *             generative_qa_prompt: { type: string }
+ *             generative_qa_fallback: { type: string }
+ *         available_models:
+ *           type: object
+ *           properties:
+ *             registry:
+ *               type: array
+ *               items:
+ *                 $ref: '#/components/schemas/ModelRegistryItem'
+ *         reranking:
+ *           type: object
+ *           properties:
+ *             rerank_top_n: { type: number }
+ *         secrets:
+ *           type: object
+ *           properties:
+ *             hf_token_present: { type: boolean }
+ *
+ *     ModelRegistryItem:
+ *       type: object
+ *       properties:
+ *         id:
+ *           type: string
+ *         checksum:
+ *           type: string
+ *         size:
+ *           type: string
+ *         purpose:
+ *           type: string
+ *
+ *     Timings:
  *               type: object
  *               properties:
  *                 total_inference_ms:
