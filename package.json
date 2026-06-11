@@ -7,8 +7,8 @@
     "dev": "ts-node-dev --respawn --transpile-only src/app.ts",
     "build": "tsc",
     "start": "node dist/app.js",
-    "model:download": "ts-node scripts/downloadModels.ts",
-    "model:verify": "ts-node scripts/verify-model.ts"
+    "model:download": "tsx scripts/downloadModels.ts",
+    "model:verify": "tsx scripts/verify-models.ts"
   },
   "keywords": [],
   "author": "",
@@ -19,21 +19,22 @@
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
-    "uuid": "^11.1.0",
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
+    "uuid": "^11.1.0",
     "zod": "^3.24.2"
   },
   "devDependencies": {
-    "@types/glob": "^8.1.0",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
+    "@types/glob": "^8.1.0",
     "@types/node": "^25.8.0",
     "@types/swagger-jsdoc": "^6.0.4",
-    "@types/uuid": "^10.0.0",
     "@types/swagger-ui-express": "^4.1.8",
+    "@types/uuid": "^10.0.0",
     "ts-node": "^10.9.2",
     "ts-node-dev": "^2.0.0",
+    "tsx": "^4.22.4",
     "typescript": "^6.0.3"
   }
 }
