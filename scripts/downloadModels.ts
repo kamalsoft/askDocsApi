@@ -1,4 +1,5 @@
 import { pipeline, env } from '@huggingface/transformers';
+import fs from 'fs';
 import { ENV } from '../src/config/env'; // Corrected path
 
 /**
@@ -7,6 +8,11 @@ import { ENV } from '../src/config/env'; // Corrected path
 async function downloadAllModels() {
     console.log('🚀 Starting full model download sequence...');
     console.log(`📂 Cache Directory: ${ENV.MODEL_CACHE_DIR}\n`);
+
+    // Ensure cache directory exists so local tools (like du) don't fail
+    if (!fs.existsSync(ENV.MODEL_CACHE_DIR)) {
+        fs.mkdirSync(ENV.MODEL_CACHE_DIR, { recursive: true });
+    }
 
     // Configure environment
     env.allowRemoteModels = true;
@@ -20,7 +26,14 @@ async function downloadAllModels() {
         { id: ENV.TRANSFORMER_MODEL, task: 'question-answering', quantized: ENV.TRANSFORMER_QUANTIZED, name: 'Extractive QA' },
     ];
 
-    for (const model of modelTasks) {
+    // De-duplicate by ID to avoid redundant downloads and cache bloat
+    const uniqueModels = Array.from(new Map(modelTasks.map(m => [m.id, m])).values());
+
+    for (const model of uniqueModels) {
+        if (!model.id) {
+            console.log(`\n--- Skipping [${model.name}] (Not configured) ---`);
+            continue;
+        }
         console.log(`\n--- [${model.name}] Downloading ${model.id} ---`);
         try {
             const p = await pipeline(model.task as any, model.id, {

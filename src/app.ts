@@ -1,4 +1,4 @@
-import express from 'express';
+import express, { Request, Response, NextFunction } from 'express';
 import path from 'path';
 import cors from 'cors';
 import swaggerUi from 'swagger-ui-express';
@@ -59,6 +59,27 @@ const swaggerOptions = {
 
 const swaggerSpec = swaggerJsdoc(swaggerOptions);
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+
+// Global 404 Handler - placed after all other routes
+app.use((req, res) => {
+  res.status(404).json({
+    code: 'NOT_FOUND',
+    message: `The requested path '${req.path}' was not found. Please ensure you are using the correct API prefix (e.g., /api/v1/query).`,
+    path: req.path
+  });
+});
+
+// Global Error Handler - catches all exceptions thrown in routes or middleware
+app.use((err: any, req: Request, res: Response, next: NextFunction) => {
+  console.error(`[Internal Error] ${err.stack}`);
+
+  const statusCode = err.status || 500;
+  res.status(statusCode).json({
+    code: err.code || 'INTERNAL_SERVER_ERROR',
+    message: err.message || 'An unexpected error occurred on the server.',
+    details: ENV.NODE_ENV === 'development' ? err.stack : undefined
+  });
+});
 
 app.listen(ENV.PORT, async () => {
   console.log(`RagMiddleware API is running on port ${ENV.PORT}`);

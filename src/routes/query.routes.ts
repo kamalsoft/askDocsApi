@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { QueryController } from '../controllers/query.controller';
+import { asyncHandler } from '../middleware/asyncHandler';
 
 const router = Router();
 
@@ -25,7 +26,7 @@ const router = Router();
  *       500:
  *         description: Internal error
  */
-router.post('/v1/query', QueryController.handleQuery);
+router.post('/v1/query', asyncHandler(QueryController.handleQuery));
 
 /**
  * @swagger
@@ -37,7 +38,7 @@ router.post('/v1/query', QueryController.handleQuery);
  *       200:
  *         description: Current engine and model configuration
  */
-router.get('/v1/status', QueryController.getStatus);
+router.get('/v1/status', asyncHandler(QueryController.getStatus));
 
 /**
  * @swagger
@@ -53,7 +54,7 @@ router.get('/v1/status', QueryController.getStatus);
  *             schema:
  *               $ref: '#/components/schemas/MetadataResponse'
  */
-router.get('/v1/metadata', QueryController.getMetadata);
+router.get('/v1/metadata', asyncHandler(QueryController.getMetadata));
 
 /**
  * @swagger
@@ -69,7 +70,7 @@ router.get('/v1/metadata', QueryController.getMetadata);
  *             schema:
  *               $ref: '#/components/schemas/ConfigResponse'
  */
-router.get('/v1/config', QueryController.getConfig);
+router.get('/v1/config', asyncHandler(QueryController.getConfig));
 
 /**
  * @swagger

@@ -14,15 +14,15 @@ export const ENV = {
   NODE_ENV: process.env.NODE_ENV || 'development',
 
   // --- Transformer Engine ---
-  TRANSFORMER_MODEL: process.env.TRANSFORMER_MODEL || DEFAULT_MODEL,
+  TRANSFORMER_MODEL: 'Xenova/distilbert-base-cased-distilled-squad', 
   MODEL_CACHE_DIR: process.env.MODEL_CACHE_DIR || path.join(process.cwd(), 'models-cache'),
   ONNX_THREADS: parseInt(process.env.ONNX_THREADS || String(defaultThreads), 10),
   MAX_INFERENCE_CHUNKS: parseInt(process.env.MAX_INFERENCE_CHUNKS || '3', 10),
-  // Granular Quantization Controls
-  EMBEDDING_QUANTIZED: process.env.EMBEDDING_QUANTIZED !== 'false',
-  RERANK_QUANTIZED: process.env.RERANK_QUANTIZED !== 'false',
-  GENERATIVE_QUANTIZED: process.env.GENERATIVE_QUANTIZED !== 'false',
-  TRANSFORMER_QUANTIZED: process.env.TRANSFORMER_QUANTIZED !== 'false',
+  // Force quantization in production to save space
+  EMBEDDING_QUANTIZED: true,
+  RERANK_QUANTIZED: true,
+  GENERATIVE_QUANTIZED: true,
+  TRANSFORMER_QUANTIZED: true,
 
   // Timeout for model loading in milliseconds
   MODEL_INIT_TIMEOUT: parseInt(process.env.MODEL_INIT_TIMEOUT || '300000', 10),
@@ -30,11 +30,15 @@ export const ENV = {
   BM25_THRESHOLD: parseFloat(process.env.BM25_THRESHOLD || '0.5'),
   
   // --- Search Optimization ---
-  EMBEDDING_MODEL: process.env.EMBEDDING_MODEL || 'Xenova/all-MiniLM-L6-v2',
-  GENERATIVE_MODEL: process.env.GENERATIVE_MODEL || 'Xenova/flan-t5-small',
-  SUMMARIZATION_MODEL: process.env.SUMMARIZATION_MODEL || 'Xenova/t5-small',
+  EMBEDDING_MODEL: 'Xenova/all-MiniLM-L6-v2',
+  GENERATIVE_MODEL: 'Xenova/flan-t5-small', 
+  SUMMARIZATION_MODEL: 'Xenova/flan-t5-small', 
   GENERATIVE_QA_PROMPT: process.env.GENERATIVE_QA_PROMPT || 
-    `Answer the question based strictly on the context provided below. \nIf the answer is not contained within the context, respond exactly with: "{fallback}"\n\nContext:\n{context}\n\nQuestion: {question}\nAnswer:`,
+    `### INSTRUCTION: Answer the technical question using ONLY the provided Context. Do not use external knowledge. If the answer is missing from the Context, output exactly: {fallback}\n\n### CONTEXT:\n{context}\n\n### QUESTION: {question}\n\n### DETAILED ANSWER:`,
+  SUMMARIZATION_PROMPT: process.env.SUMMARIZATION_PROMPT ||
+    `### INSTRUCTION: Summarize the technical details in the Context specifically regarding "{question}". Use bullet points for key specifications. If irrelevant, output exactly: {fallback}\n\n### CONTEXT:\n{context}\n\n### TECHNICAL SUMMARY:`,
+  COMPARISON_PROMPT: process.env.COMPARISON_PROMPT ||
+    `### INSTRUCTION: Compare the versions, configurations, or changes found in the Context regarding: "{question}". Identify specific deltas. If no comparison is found, output exactly: {fallback}\n\n### CONTEXT:\n{context}\n\n### TECHNICAL COMPARISON:`,
   GENERATIVE_QA_FALLBACK: process.env.GENERATIVE_QA_FALLBACK || 
     "Please ask a valid question related to the documentation to get the actual or expected answers.",
   

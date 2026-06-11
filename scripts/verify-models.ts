@@ -21,9 +21,17 @@ async function verifyModels() {
         { id: ENV.TRANSFORMER_MODEL, task: 'question-answering', quantized: ENV.TRANSFORMER_QUANTIZED, name: 'Extractive QA' },
     ];
 
+    // De-duplicate by ID to avoid redundant checks (e.g., when tasks share a model)
+    const uniqueModels = Array.from(new Map(modelTasks.map(m => [m.id, m])).values());
+
     let allValid = true;
 
-    for (const model of modelTasks) {
+    for (const model of uniqueModels) {
+        if (!model.id) {
+            console.log(`- Skipping [${model.name}] (Not configured)`);
+            continue;
+        }
+
         process.stdout.write(`- Checking [${model.name}] (${model.id})... `);
         try {
             // Attempt to load the model pipeline

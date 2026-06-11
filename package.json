@@ -8,7 +8,8 @@
     "build": "tsc",
     "start": "node dist/app.js",
     "model:download": "tsx scripts/downloadModels.ts",
-    "model:verify": "tsx scripts/verify-models.ts"
+    "model:verify": "tsx scripts/verify-models.ts",
+    "vercel-build": "npm run model:download && npm run model:verify && npm run build"
   },
   "keywords": [],
   "author": "",
@@ -22,6 +23,7 @@
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
     "uuid": "^11.1.0",
+    "vercel": "^54.11.1",
     "zod": "^3.24.2"
   },
   "devDependencies": {
