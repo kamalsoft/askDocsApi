@@ -32,6 +32,19 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
  *     summary: API Health Check
  *     description: Returns the status of the vector store and all transformer models.
  *     tags: [System]
+ *     responses:
+ *       200:
+ *         description: API is healthy
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/HealthResponse'
+ *       503:
+ *         description: API is unhealthy
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/HealthErrorResponse'
  */
 app.get('/health', QueryController.healthCheck);
 

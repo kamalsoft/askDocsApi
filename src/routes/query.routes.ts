@@ -37,6 +37,10 @@ router.post('/v1/query', asyncHandler(QueryController.handleQuery));
  *     responses:
  *       200:
  *         description: Current engine and model configuration
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/StatusResponse'
  */
 router.get('/v1/status', asyncHandler(QueryController.getStatus));
 
@@ -84,6 +88,13 @@ router.get('/v1/config', asyncHandler(QueryController.getConfig));
  *         application/json:
  *           schema:
  *             $ref: '#/components/schemas/ConfigResponse'
+ *     responses:
+ *       200:
+ *         description: Configuration updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ConfigResponse'
  */
 router.patch('/v1/config', QueryController.updateConfig);
 
@@ -125,6 +136,44 @@ router.patch('/v1/config', QueryController.updateConfig);
  *           properties:
  *             timings:
  *               $ref: '#/components/schemas/Timings'
+ *
+ *     StatusResponse:
+ *       type: object
+ *       properties:
+ *         status:
+ *           type: string
+ *           example: "ready"
+ *         models:
+ *           type: object
+ *           properties:
+ *             embedding: { type: string }
+ *             generative: { type: string }
+ *         onnx_threads:
+ *           type: number
+ *
+ *     HealthResponse:
+ *       type: object
+ *       properties:
+ *         status:
+ *           type: string
+ *           example: "UP"
+ *         timestamp:
+ *           type: string
+ *           format: date-time
+ *         checks:
+ *           type: object
+ *           properties:
+ *             vectorStore: { type: string, example: "connected" }
+ *             models: { type: string, example: "loaded" }
+ *
+ *     HealthErrorResponse:
+ *       type: object
+ *       properties:
+ *         status:
+ *           type: string
+ *           example: "DOWN"
+ *         reason:
+ *           type: string
  *
  *     MetadataResponse:
  *       type: object
