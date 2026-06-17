@@ -46,7 +46,7 @@ EMBEDDING_MODEL=Xenova/all-MiniLM-L6-v2
 RERANK_MODEL=Xenova/bge-reranker-base
 GENERATIVE_MODEL=Xenova/flan-t5-small
 SUMMARIZATION_MODEL=Xenova/t5-small
-VECTOR_STORE_PATH=./vector-store/docs.json
+VECTOR_STORE_PATH=./vector-store/
 MODEL_CACHE_DIR=./models-cache
 ONNX_THREADS=4
 ```
@@ -179,7 +179,7 @@ Key environment variables define the operational parameters of the API:
 -   `SUMMARIZATION_MODEL`: The model specialized for summarization tasks (e.g., `Xenova/t5-small`).
 -   `MODEL_CACHE_DIR`: Local directory where models are cached (default: `./models-cache`).
 -   `ONNX_THREADS`: Number of threads for ONNX runtime operations (default: `4`).
--   `VECTOR_STORE_PATH`: Path to the JSON file storing vectorized documents (default: `./vector-store/docs.json`).
+-   `VECTOR_STORE_PATH`: Path to the JSON file or directory containing JSON shards (default: `./vector-store/`).
 
 ### Model Registry
 
@@ -434,7 +434,7 @@ Returned if the vector store path is inaccessible or models failed to initialize
 ```json
 {
   "status": "DOWN",
-  "reason": "Vector store file not found at ./vector-store/docs.json"
+  "reason": "Vector store directory not found at ./vector-store/"
 }
 ```
 
@@ -695,7 +695,7 @@ The project includes a `samples/` directory with Markdown files covering:
 | Input Question | Expected Outcome |
 | :--- | :--- |
 | "What is the port?" | Should identify `5001` from `.env` context. |
-| "Summarize auth." | Should list headers and error codes. |
+| "Summarize auth." | Should list headers, error codes, and include metadata timings/hashes. |
 | "Invalid query" | Should return a `400` status with validation details. |
 
 ## Known Limitations

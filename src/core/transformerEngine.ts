@@ -82,12 +82,12 @@ export class LocalTransformerOrchestrator {
   /**
    * Performs local in-process answer extraction using ONNX-optimized weights.
    */
-  public static async extractAnswer(question: string, contexts: { text: string; title: string }[], correlationId: string): Promise<{ answer: string; score: number; sourceContext: string; sourceTitle: string; timings: ChunkTiming[] }> {
+  public static async extractAnswer(question: string, contexts: { content: string; label: string }[], correlationId: string): Promise<{ answer: string; score: number; sourceContent: string; sourceLabel: string; total_inference_ms: number; per_chunk: ChunkTiming[] }> {
     const qa = await this.getPipeline();
     
     const inferenceStartTime = Date.now();
-    let bestResult = { answer: "", score: 0, sourceContext: "", sourceTitle: "" };
-    const timings: ChunkTiming[] = [];
+    let bestResult = { answer: "", score: 0, sourceContent: "", sourceLabel: "" };
+    const per_chunk: ChunkTiming[] = [];
 
     // Limit the number of chunks to process to prevent long-tail latency
     const limitedContexts = contexts.slice(0, ENV.MAX_INFERENCE_CHUNKS);
@@ -96,25 +96,31 @@ export class LocalTransformerOrchestrator {
     for (let i = 0; i < limitedContexts.length; i++) {
       const context = limitedContexts[i];
       const chunkStartTime = Date.now();
-      const result = await qa(question, context.text, {
+      
+      // Strengthen prompt quality by adding structural markers
+      const formattedContext = `SOURCE: ${context.label}\nCONTENT:\n${context.content}`;
+
+      const result = await qa(question, formattedContext, {
         truncation: true, 
         padding: true,
-        max_seq_length: 512
+        max_seq_length: 512,
+        // DistilBERT specific: handle stride to prevent losing answers at window boundaries
+        stride: 128 
       });
       const chunkDuration = Date.now() - chunkStartTime;
       
-      timings.push({ label: context.title, ms: chunkDuration });
-      console.log(`[${correlationId}] Chunk ${i + 1}/${limitedContexts.length} ("${context.title}") inference took ${chunkDuration}ms (score: ${result.score.toFixed(4)})`);
+      per_chunk.push({ label: context.label, ms: chunkDuration });
+      console.log(`[${correlationId}] Chunk ${i + 1}/${limitedContexts.length} ("${context.label}") inference took ${chunkDuration}ms (score: ${result.score.toFixed(4)})`);
 
       // Update if this chunk provides a higher confidence answer
       if (result.score > bestResult.score) {
-        bestResult = { answer: result.answer, score: result.score, sourceContext: context.text, sourceTitle: context.title };
+        bestResult = { answer: result.answer, score: result.score, sourceContent: context.content, sourceLabel: context.label };
       }
     }
 
-    const inferenceDuration = Date.now() - inferenceStartTime;
-    console.log(`[${correlationId}] Transformer inference completed in ${inferenceDuration}ms across ${limitedContexts.length} chunks.`);
+    const total_inference_ms = Date.now() - inferenceStartTime;
+    console.log(`[${correlationId}] Transformer inference completed in ${total_inference_ms}ms across ${limitedContexts.length} chunks.`);
 
-    return { ...bestResult, timings };
+    return { ...bestResult, total_inference_ms, per_chunk };
   }
 }

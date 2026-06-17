@@ -46,7 +46,7 @@ EMBEDDING_MODEL=Xenova/all-MiniLM-L6-v2
 RERANK_MODEL=Xenova/bge-reranker-base
 GENERATIVE_MODEL=Xenova/flan-t5-small
 SUMMARIZATION_MODEL=Xenova/t5-small
-VECTOR_STORE_PATH=./vector-store/docs.json
+VECTOR_STORE_PATH=./vector-store/
 MODEL_CACHE_DIR=./models-cache
 ONNX_THREADS=4
 ```
@@ -179,7 +179,7 @@ Key environment variables define the operational parameters of the API:
 -   `SUMMARIZATION_MODEL`: The model specialized for summarization tasks (e.g., `Xenova/t5-small`).
 -   `MODEL_CACHE_DIR`: Local directory where models are cached (default: `./models-cache`).
 -   `ONNX_THREADS`: Number of threads for ONNX runtime operations (default: `4`).
--   `VECTOR_STORE_PATH`: Path to the JSON file storing vectorized documents (default: `./vector-store/docs.json`).
+-   `VECTOR_STORE_PATH`: Path to the JSON file or directory containing JSON shards (default: `./vector-store/`).
 
 ### Model Registry
 
@@ -360,7 +360,8 @@ See QueryRequest for schema details.
 {
   "question": "string",
   "mode": "answer | summarize | compare",
-  "top_k": 5
+  "top_k": 5,
+  "filter": { "category": "api" }
 }
 ```
 
@@ -377,10 +378,22 @@ curl -X POST http://localhost:5001/api/v1/query \
 ```json
 {
   "answer": "You can install the project by running 'npm install' in the root directory.",
-  "grounding_score": 0.98,
+  "score": 0.98,
+  "correlationId": "a1b2c3d4-e5f6-430c-954f-a5131c0abe33",
   "citations": [
-    {"file": "README.md", "text": "Install dependencies using npm install"}
-  ]
+    {
+      "file": "README.md", 
+      "label": "Quick Start",
+      "content": "Install dependencies using npm install",
+      "relevance": 0.95
+    }
+  ],
+  "metadata": {
+    "timings": {
+      "total_inference_ms": 112
+    },
+    "instructionHashes": { "search_documents": "..." }
+  }
 }
 ```
 
@@ -406,7 +419,20 @@ None. This is a read-only operation.
     "embedding": "Xenova/all-MiniLM-L6-v2",
     "generative": "Xenova/flan-t5-small"
   },
-  "onnx_threads": 4
+  "onnx_threads": 4,
+  "shards": ["ERP requirement.docx/index.json", "grad_accumulation.md/index.json"],
+  "fileMetadata": {
+    "ERP requirement.docx/index.json": {
+      "chunkCount": 12,
+      "headings": ["Introduction", "Scope"],
+      "tags": ["requirement", "erp"]
+    },
+    "grad_accumulation.md/index.json": {
+      "chunkCount": 8,
+      "headings": ["Concept", "Implementation"],
+      "tags": ["training", "optimization"]
+    }
+  }
 }
 ```
 
@@ -434,7 +460,7 @@ Returned if the vector store path is inaccessible or models failed to initialize
 ```json
 {
   "status": "DOWN",
-  "reason": "Vector store file not found at ./vector-store/docs.json"
+  "reason": "Vector store directory not found at ./vector-store/"
 }
 ```
 

@@ -46,7 +46,7 @@ EMBEDDING_MODEL=Xenova/all-MiniLM-L6-v2
 RERANK_MODEL=Xenova/bge-reranker-base
 GENERATIVE_MODEL=Xenova/flan-t5-small
 SUMMARIZATION_MODEL=Xenova/t5-small
-VECTOR_STORE_PATH=./vector-store/docs.json
+VECTOR_STORE_PATH=./vector-store/
 MODEL_CACHE_DIR=./models-cache
 ONNX_THREADS=4
 ```
@@ -128,7 +128,7 @@ The `askDocsApi` is a local-first RAG engine. It utilizes a **Skill-based Orches
 -   **Skill Registry (`src/skills/`):** The central hub that auto-discovers and executes logic "specialists" (Search, Generative QA, Summarization, Extraction).
 -   **Hybrid Retrieval Engine (`src/core/engine.ts`):** A multi-stage retrieval system combining BM25 keyword scoring and semantic vector similarity (MiniLM).
 -   **Local Transformer Orchestrator (`src/core/transformerEngine.ts`):** A dedicated manager for high-concurrency extractive tasks (DistilBERT).
--   **Vector Store:** A local flat-file database containing pre-computed embeddings and document metadata.
+-   **Vector Store:** A local directory containing pre-computed embedding shards and document metadata.
 
 ### Data Flow Summary
 
@@ -179,7 +179,7 @@ Key environment variables define the operational parameters of the API:
 -   `SUMMARIZATION_MODEL`: The model specialized for summarization tasks (e.g., `Xenova/t5-small`).
 -   `MODEL_CACHE_DIR`: Local directory where models are cached (default: `./models-cache`).
 -   `ONNX_THREADS`: Number of threads for ONNX runtime operations (default: `4`).
--   `VECTOR_STORE_PATH`: Path to the JSON file storing vectorized documents (default: `./vector-store/docs.json`).
+-   `VECTOR_STORE_PATH`: Path to the directory containing JSON shards for the vector store (default: `./vector-store/`).
 -   `HF_TOKEN`: (Optional) Hugging Face Hub token for accessing private or gated models.
 -   `TRANSFORMER_QUANTIZED`: Use 8-bit quantization for the QA model (default: `false`).
 -   `EMBEDDING_QUANTIZED`: Use 8-bit quantization for embeddings (default: `false`).
@@ -188,6 +188,7 @@ Key environment variables define the operational parameters of the API:
 -   `RERANK_TOP_N`: Number of candidates passed to the cross-encoder for re-ranking (default: `10`).
 -   `MAX_INFERENCE_CHUNKS`: Maximum number of document chunks to process per extractive query (default: `3`).
 -   `MODEL_INIT_TIMEOUT`: Timeout in milliseconds for skill/model initialization.
+-   `MIN_CONFIDENCE_THRESHOLD`: Minimum cross-encoder score required to return a result (default: `0.25`).
 
 ### Model Registry
 

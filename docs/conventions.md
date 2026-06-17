@@ -46,7 +46,7 @@ EMBEDDING_MODEL=Xenova/all-MiniLM-L6-v2
 RERANK_MODEL=Xenova/bge-reranker-base
 GENERATIVE_MODEL=Xenova/flan-t5-small
 SUMMARIZATION_MODEL=Xenova/t5-small
-VECTOR_STORE_PATH=./vector-store/docs.json
+VECTOR_STORE_PATH=./vector-store/
 MODEL_CACHE_DIR=./models-cache
 ONNX_THREADS=4
 ```

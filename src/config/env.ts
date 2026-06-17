@@ -23,24 +23,30 @@ export const ENV = {
   RERANK_QUANTIZED: true,
   GENERATIVE_QUANTIZED: true,
   TRANSFORMER_QUANTIZED: true,
+  // Maximum total length (characters) of retrieved context sent to LLM
+  MAX_CONTEXT_LENGTH: parseInt(process.env.MAX_CONTEXT_LENGTH || '12000', 10),
 
   // Timeout for model loading in milliseconds
   MODEL_INIT_TIMEOUT: parseInt(process.env.MODEL_INIT_TIMEOUT || '300000', 10),
   // Scores below this are considered noise and won't be sent for synthesis
   BM25_THRESHOLD: parseFloat(process.env.BM25_THRESHOLD || '0.5'),
+  // Minimum cross-encoder score required to return a result
+  MIN_CONFIDENCE_THRESHOLD: parseFloat(process.env.MIN_CONFIDENCE_THRESHOLD || '0.25'),
+  // Jaccard similarity threshold for removing near-duplicate context (default 0.8)
+  NEAR_DUPLICATE_THRESHOLD: parseFloat(process.env.NEAR_DUPLICATE_THRESHOLD || '0.8'),
   
   // --- Search Optimization ---
   EMBEDDING_MODEL: 'Xenova/all-MiniLM-L6-v2',
   GENERATIVE_MODEL: 'Xenova/flan-t5-small', 
   SUMMARIZATION_MODEL: 'Xenova/flan-t5-small', 
   GENERATIVE_QA_PROMPT: process.env.GENERATIVE_QA_PROMPT || 
-    `### INSTRUCTION: Answer the technical question using ONLY the provided Context. Do not use external knowledge. If the answer is missing from the Context, output exactly: {fallback}\n\n### CONTEXT:\n{context}\n\n### QUESTION: {question}\n\n### DETAILED ANSWER:`,
+    `answer the question using the context below. if the answer is not in the context, say "{fallback}"\n\ncontext: {context}\n\nquestion: {question}`,
   SUMMARIZATION_PROMPT: process.env.SUMMARIZATION_PROMPT ||
-    `### INSTRUCTION: Summarize the technical details in the Context specifically regarding "{question}". Use bullet points for key specifications. If irrelevant, output exactly: {fallback}\n\n### CONTEXT:\n{context}\n\n### TECHNICAL SUMMARY:`,
+    `summarize the following text regarding "{question}". use bullet points.\n\ntext: {context}`,
   COMPARISON_PROMPT: process.env.COMPARISON_PROMPT ||
-    `### INSTRUCTION: Compare the versions, configurations, or changes found in the Context regarding: "{question}". Identify specific deltas. If no comparison is found, output exactly: {fallback}\n\n### CONTEXT:\n{context}\n\n### TECHNICAL COMPARISON:`,
+    `compare the differences in the following text regarding "{question}"\n\ntext: {context}`,
   GENERATIVE_QA_FALLBACK: process.env.GENERATIVE_QA_FALLBACK || 
-    "Please ask a valid question related to the documentation to get the actual or expected answers.",
+    "I'm sorry, I couldn't find a definitive answer in the documentation.",
   
   BM25_WEIGHT: parseFloat(process.env.BM25_WEIGHT || '0.3'),
   SEMANTIC_WEIGHT: parseFloat(process.env.SEMANTIC_WEIGHT || '0.7'),
@@ -55,7 +61,7 @@ export const ENV = {
   HF_TOKEN: process.env.HF_TOKEN?.startsWith('hf_') ? process.env.HF_TOKEN : '',
   
   // --- Paths ---
-  VECTOR_STORE_PATH: process.env.VECTOR_STORE_PATH || path.join(process.cwd(), 'vector-store/docs.json'),
+  VECTOR_STORE_PATH: process.env.VECTOR_STORE_PATH || path.join(process.cwd(), 'vector-store/'),
 };
 
 // Validation: Ensure we have a model specified

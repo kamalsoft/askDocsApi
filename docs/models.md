@@ -46,7 +46,7 @@ EMBEDDING_MODEL=Xenova/all-MiniLM-L6-v2
 RERANK_MODEL=Xenova/bge-reranker-base
 GENERATIVE_MODEL=Xenova/flan-t5-small
 SUMMARIZATION_MODEL=Xenova/t5-small
-VECTOR_STORE_PATH=./vector-store/docs.json
+VECTOR_STORE_PATH=./vector-store/
 MODEL_CACHE_DIR=./models-cache
 ONNX_THREADS=4
 ```
@@ -179,7 +179,7 @@ Key environment variables define the operational parameters of the API:
 -   `SUMMARIZATION_MODEL`: The model specialized for summarization tasks (e.g., `Xenova/t5-small`).
 -   `MODEL_CACHE_DIR`: Local directory where models are cached (default: `./models-cache`).
 -   `ONNX_THREADS`: Number of threads for ONNX runtime operations (default: `4`).
--   `VECTOR_STORE_PATH`: Path to the JSON file storing vectorized documents (default: `./vector-store/docs.json`).
+-   `VECTOR_STORE_PATH`: Path to the JSON file or directory containing JSON shards (default: `./vector-store/`).
 
 ### Model Registry
 
@@ -457,13 +457,15 @@ The payload sent to `POST /api/v1/query`.
 | `mode` | `string` | Yes | Interaction mode: `answer`, `summarize`, or `compare`. |
 | `top_k` | `integer` | No | Number of document chunks to retrieve. Default: `5`. Max: `20`. |
 | `threshold` | `float` | No | Minimum similarity score (0.0 to 1.0). Default: `0.5`. |
+| `filter` | `object` | No | Metadata filters (e.g., `{"category": "api"}`). |
 
 **Example Object**:
 ```json
 {
   "question": "What is the system architecture?",
   "mode": "summarize",
-  "top_k": 3
+  "top_k": 3,
+  "filter": { "category": "architecture" }
 }
 ```
 
@@ -473,21 +475,34 @@ The payload returned by a successful query.
 | Field | Type | Description |
 | :--- | :--- | :--- |
 | `answer` | `string` | The synthesized text answer or summary. |
-| `grounding_score` | `float` | Confidence score (0.0 - 1.0) indicating factual grounding. |
+| `score` | `float` | Confidence score (0.0 - 1.0) indicating factual grounding. |
 | `citations` | `Array<Citation>` | List of source documents used for the answer. |
-| `metadata` | `object` | Performance metrics including `latency_ms` and `timings` (per-chunk inference time). |
+| `correlationId` | `string` | Unique identifier for request tracing. |
+| `metadata` | `object` | Performance metrics including `timings` and `instructionHashes`. |
 
 **Example Object**:
 ```json
 {
   "answer": "The system uses a modular skill-based architecture...",
-  "grounding_score": 0.95,
+  "score": 0.95,
+  "correlationId": "f852d894-f3d9-430c-954f-a5131c0abe33",
   "citations": [
-    { "file": "README.md", "relevance": 0.89 }
+    { 
+      "file": "README.md", 
+      "label": "System Architecture",
+      "content": "The system utilizes a Skill-based Orchestration model...",
+      "relevance": 0.89 
+    }
   ],
   "metadata": { 
-    "latency_ms": 142,
-    "timings": [{ "label": "Introduction", "ms": 45 }]
+    "timings": {
+      "total_inference_ms": 142
+    },
+    "instructionHashes": {
+      "search_documents": "...",
+      "generative_qa": "...",
+      "extract_answer": "..."
+    }
   }
 }
 ```
@@ -509,13 +524,23 @@ Information about the internal state of the API.
 | `status` | `string` | Current state: `initializing`, `ready`, or `error`. |
 | `uptime` | `number` | Server uptime in seconds. |
 | `model_cache` | `string` | Path to the local model directory. |
+| `shards` | `Array<string>` | List of relative paths to loaded document shards. |
+| `fileMetadata` | `object` | Mapping of shard paths to metadata (chunk counts, headings, tags). |
 
 **Example Object**:
 ```json
 {
   "status": "ready",
   "uptime": 3600,
-  "model_cache": "./models-cache"
+  "model_cache": "./models-cache",
+  "shards": ["docs/intro.json"],
+  "fileMetadata": {
+    "docs/intro.json": {
+      "chunkCount": 5,
+      "headings": ["Welcome"],
+      "tags": ["guide"]
+    }
+  }
 }
 ```
 

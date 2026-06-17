@@ -46,7 +46,7 @@ EMBEDDING_MODEL=Xenova/all-MiniLM-L6-v2
 RERANK_MODEL=Xenova/bge-reranker-base
 GENERATIVE_MODEL=Xenova/flan-t5-small
 SUMMARIZATION_MODEL=Xenova/t5-small
-VECTOR_STORE_PATH=./vector-store/docs.json
+VECTOR_STORE_PATH=./vector-store/
 MODEL_CACHE_DIR=./models-cache
 ONNX_THREADS=4
 ```
@@ -179,7 +179,8 @@ Key environment variables define the operational parameters of the API:
 -   `SUMMARIZATION_MODEL`: The model specialized for summarization tasks (e.g., `Xenova/t5-small`).
 -   `MODEL_CACHE_DIR`: Local directory where models are cached (default: `./models-cache`).
 -   `ONNX_THREADS`: Number of threads for ONNX runtime operations (default: `4`).
--   `VECTOR_STORE_PATH`: Path to the JSON file storing vectorized documents (default: `./vector-store/docs.json`).
+-   `MIN_CONFIDENCE_THRESHOLD`: Minimum grounding score for results (default: `0.25`).
+-   `VECTOR_STORE_PATH`: Path to the directory containing vectorized document shards (default: `./vector-store/`).
 
 ### Model Registry
 

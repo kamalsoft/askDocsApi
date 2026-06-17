@@ -5,11 +5,12 @@
   "main": "dist/app.js",
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/app.ts",
-    "build": "tsc",
+    "build": "rm -rf dist && tsc",
     "start": "node dist/app.js",
     "model:download": "tsx scripts/downloadModels.ts",
     "model:verify": "tsx scripts/verify-models.ts",
-    "vercel-build": "npm run model:download && npm run model:verify && npm run build"
+    "vercel-build": "npm run model:download && npm run model:verify && npm run build",
+    "test:memory": "jest src/core/memory.test.ts"
   },
   "keywords": [],
   "author": "",
@@ -27,6 +28,7 @@
     "zod": "^3.24.2"
   },
   "devDependencies": {
+    "@types/jest": "^29.5.14",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/glob": "^8.1.0",
@@ -34,6 +36,8 @@
     "@types/swagger-jsdoc": "^6.0.4",
     "@types/swagger-ui-express": "^4.1.8",
     "@types/uuid": "^10.0.0",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.2.5",
     "ts-node": "^10.9.2",
     "ts-node-dev": "^2.0.0",
     "tsx": "^4.22.4",
