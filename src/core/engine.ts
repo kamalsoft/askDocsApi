@@ -303,12 +303,24 @@ export class RetrievalEngine {
   /**
    * Hybrid Search: Evaluates both BM25 and Semantic Similarity
    */
-  public static async retrieveContext(question: string, correlationId: string, topK: number = 3): Promise<{ contextChunks: { text: string; title: string }[]; citations: Citation[] }> {    
+  public static async retrieveContext(question: string, correlationId: string, topK: number = 3): Promise<{ contextChunks: { text: string; title: string }[]; citations: Citation[]; isBlocked: boolean }> {    
+    // --- Pass 0: Semantic Noise Guard ---
+    // Filter out obvious gibberish or extremely short queries that lack semantic meaning.
+    const cleanQuery = question.trim();
+    const isGibberish = cleanQuery.length < 4 || 
+                        (!/[a-zA-Z0-9]/.test(cleanQuery)) || 
+                        (cleanQuery.split(' ').length === 1 && cleanQuery.length < 5);
+
+    if (isGibberish) {
+      this.log('warn', `Query blocked by Noise Guard: "${question}"`, correlationId);
+      return { contextChunks: [], citations: [], isBlocked: true };
+    }
+
     const store = await this.loadDocs(correlationId);
     
     if (!store.chunks || store.chunks.length === 0) {
       console.warn(`[${correlationId}] Retrieval aborted: The vector store contains 0 chunks.`);
-      return { contextChunks: [], citations: [] };
+      return { contextChunks: [], citations: [], isBlocked: false };
     }
     console.log(`[${correlationId}] Starting retrieval across ${store.chunks.length} total chunks.`);
 
@@ -490,6 +502,6 @@ export class RetrievalEngine {
       };
     });
 
-    return { contextChunks, citations };
+    return { contextChunks, citations, isBlocked: false };
   }
 }

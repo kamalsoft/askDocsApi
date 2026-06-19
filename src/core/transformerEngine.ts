@@ -6,28 +6,35 @@ import path from 'node:path';
 
 export class LocalTransformerOrchestrator {
   private static qaPipeline: any = null;
+  private static genPipeline: any = null;
 
   /**
    * Eagerly initializes the model. Useful for warming up the engine 
    * on startup rather than waiting for the first request.
    */
   public static async initialize(): Promise<void> {
-    await this.getPipeline();
+    await Promise.all([
+      this.getPipeline('question-answering'),
+      this.getPipeline('text2text-generation')
+    ]);
   }
 
   /**
    * Checks if the pipeline has been successfully loaded into memory.
    */
   public static isReady(): boolean {
-    return this.qaPipeline !== null;
+    return this.qaPipeline !== null && this.genPipeline !== null;
   }
 
   /**
    * Lazy-loads the ONNX transformer pipeline. 
    * Memory is allocated only upon the first query.
    */
-  private static async getPipeline() {
-    if (!this.qaPipeline) {
+  private static async getPipeline(task: 'question-answering' | 'text2text-generation') {
+    const isQA = task === 'question-answering';
+    if (isQA && this.qaPipeline) return this.qaPipeline;
+    if (!isQA && this.genPipeline) return this.genPipeline;
+
       // Ensure library looks in our custom cache directory
       env.cacheDir = ENV.MODEL_CACHE_DIR;
 
@@ -44,14 +51,12 @@ export class LocalTransformerOrchestrator {
         (env.backends.onnx as any).numThreads = ENV.ONNX_THREADS;
       }
       
-      const modelId = ENV.TRANSFORMER_MODEL;
+      const modelId = isQA ? ENV.TRANSFORMER_MODEL : ENV.GENERATIVE_MODEL;
       
       console.log(`Transformer Engine: Loading model ${modelId} from local cache...`);
 
       try {
-        // Passing the ID instead of a resolved path allows the library to handle 
-        // its internal 'models--user--repo' folder structure automatically.
-        this.qaPipeline = await pipeline('question-answering', modelId, {
+        const instance = await pipeline(task as any, modelId, {
           device: 'cpu',
           dtype: ENV.TRANSFORMER_QUANTIZED ? 'q8' : 'fp32',
           session_options: {
@@ -67,23 +72,25 @@ export class LocalTransformerOrchestrator {
             }
           }
         });
+
+        if (isQA) this.qaPipeline = instance;
+        else this.genPipeline = instance;
+
+        console.log(`Transformer Engine: ${modelId} loaded successfully from local storage.`);
+        return instance;
       } catch (err: any) {
         throw new Error(
           `Model weights not found for "${modelId}" in ${ENV.MODEL_CACHE_DIR}. ` +
           `Please run the setup command: npm run model:download`
         );
       }
-
-      console.log(`Transformer Engine: ${modelId} loaded successfully from local storage.`);
-    }
-    return this.qaPipeline;
   }
 
   /**
    * Performs local in-process answer extraction using ONNX-optimized weights.
    */
   public static async extractAnswer(question: string, contexts: { content: string; label: string }[], correlationId: string): Promise<{ answer: string; score: number; sourceContent: string; sourceLabel: string; total_inference_ms: number; per_chunk: ChunkTiming[] }> {
-    const qa = await this.getPipeline();
+    const qa = await this.getPipeline('question-answering');
     
     const inferenceStartTime = Date.now();
     let bestResult = { answer: "", score: 0, sourceContent: "", sourceLabel: "" };
@@ -122,5 +129,31 @@ export class LocalTransformerOrchestrator {
     console.log(`[${correlationId}] Transformer inference completed in ${total_inference_ms}ms across ${limitedContexts.length} chunks.`);
 
     return { ...bestResult, total_inference_ms, per_chunk };
+  }
+
+  /**
+   * Executes a generative skill by applying context and question to a Markdown instruction template.
+   */
+  public static async runGenerativeSkill(instruction: string, context: string, question: string, correlationId: string): Promise<{ answer: string; total_inference_ms: number }> {
+    const generator = await this.getPipeline('text2text-generation');
+    const startTime = Date.now();
+
+    // Render the prompt by replacing placeholders
+    const prompt = instruction
+      .replace('{{context}}', context || 'No context provided.')
+      .replace('{{question}}', question);
+
+    const result = await generator(prompt, {
+      max_new_tokens: 512,
+      temperature: 0.7,
+      do_sample: true,
+      repetition_penalty: 1.2
+    });
+
+    const answer = Array.isArray(result) ? result[0].generated_text : result.generated_text;
+    const total_inference_ms = Date.now() - startTime;
+
+    console.log(`[${correlationId}] Generative inference completed in ${total_inference_ms}ms.`);
+    return { answer, total_inference_ms };
   }
 }

@@ -73,6 +73,12 @@ const swaggerOptions = {
 const swaggerSpec = swaggerJsdoc(swaggerOptions);
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
+// Route to serve the raw OpenAPI JSON specification
+app.get('/api-docs.json', (req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+  res.send(swaggerSpec);
+});
+
 // Global 404 Handler - placed after all other routes
 app.use((req, res) => {
   res.status(404).json({
@@ -94,9 +100,10 @@ app.use((err: any, req: Request, res: Response, next: NextFunction) => {
   });
 });
 
-app.listen(ENV.PORT, async () => {
-  console.log(`RagMiddleware API is running on port ${ENV.PORT}`);
-  console.log(`Interactive Swagger docs available at http://localhost:${ENV.PORT}/api-docs`);
+const PORT = ENV.PORT || 5001;
+app.listen(PORT, async () => {
+  console.log(`RagMiddleware API is running on port ${PORT}`);
+  console.log(`Interactive Swagger docs available at http://localhost:${PORT}/api-docs`);
 
   try {
     // Auto-discover and register skills from the src/skills directory
