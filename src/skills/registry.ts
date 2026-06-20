@@ -3,6 +3,7 @@ import { TextStreamer } from '@huggingface/transformers';
 import * as path from 'path';
 import * as glob from 'glob';
 import fs from 'fs';
+import fsp from 'fs/promises';
 import crypto from 'crypto';
 import { ENV } from '../config/env'; // Corrected path
 
@@ -12,8 +13,14 @@ export class SkillRegistry {
     private skillMdPaths: Map<string, string> = new Map();
 
     register(skill: BaseSkill) {
-        this.skills.set(skill.definition.name, skill);
-        console.log(`[SkillRegistry] Registered: ${skill.definition.name}`);
+        const name = (skill as any).name ?? skill.definition?.name;
+        console.log(`[Registry] register() called — skill.name=${(skill as any).name}, skill.definition?.name=${skill.definition?.name}, resolved name=${name}`);
+        if (!name) {
+            console.warn('[Registry] Skill has no name — skipping registration:', skill);
+            return;
+        }
+        this.skills.set(name, skill);
+        console.log(`[Registry] Registered skill: '${name}'`);
     }
 
     /**
@@ -21,57 +28,53 @@ export class SkillRegistry {
      * It looks for classes that extend BaseSkill.
      */
     async discoverSkills(directory: string) {
-        const pattern = path.join(directory, '**/*.{ts,js}');
-        const files = glob.sync(pattern, { ignore: '**/node_modules/**' });
-        console.log(`[SkillRegistry] Searching for skills in: ${directory} (Found ${files.length} candidate files)`);
+        const pattern = path.join(directory, '**/*.js');
+        const files = glob.sync(pattern, {
+            ignore: ['**/node_modules/**', '**/*.d.ts', '**/*.test.js', '**/*.spec.js']
+        });
+        console.log(`[SkillRegistry] Found ${files.length} candidate files`);
 
         for (const file of files) {
             try {
-                const module = await import(path.resolve(file));
-                for (const key in module) {
-                    const ExportedClass = module[key];
-                    if (typeof ExportedClass === 'function' && ExportedClass.prototype instanceof BaseSkill) {
-                        const skill = new ExportedClass() as BaseSkill;
-                        
-                        // Register first so the skill is known to the system
-                        this.register(skill);
+                const mod = require(file);
+                for (const key of Object.keys(mod)) {
+                    const ExportedClass = mod[key];
+                    if (typeof ExportedClass !== 'function' || !ExportedClass.prototype) continue;
 
-                        // Audit: Look for a matching .md file (exact name, instructions.md, or readme.md)
-                        const dir = path.dirname(file);
-                        const possibleMdFiles = [
-                            file.replace(/\.(ts|js)$/, '.md'),
-                            path.join(dir, 'instructions.md'),
-                            path.join(dir, 'readme.md')
-                        ];
+                    const proto = ExportedClass.prototype;
+                    const isSkill =
+                        typeof proto.execute === 'function' &&
+                        (proto.definition !== undefined || (new ExportedClass()).definition !== undefined);
 
-                        const mdPath = possibleMdFiles.find(p => fs.existsSync(p));
+                    if (!isSkill) continue;
 
-                        if (mdPath) {
-                            const content = fs.readFileSync(mdPath, 'utf8');
-                            const hash = crypto.createHash('sha256').update(content).digest('hex');
-                            this.instructionHashes.set(skill.definition.name, hash);
-                            this.skillMdPaths.set(skill.definition.name, mdPath);
-                            
-                            // Attach MD content to the definition for the LLM to read
-                            (skill.definition as any).instructions = content;
-                            console.log(`[SkillRegistry] Attached instructions for: ${skill.definition.name} (${hash.substring(0, 8)})`);
-                        } else {
-                            console.warn(`[SkillRegistry] Warning: No instruction .md file found for skill: ${skill.definition.name}`);
-                        }
+                    const skill = new ExportedClass() as BaseSkill;
+                    const skillName = skill.definition?.name ?? (skill as any).name;
+                    if (!skillName) {
+                        console.warn(`[Registry] Skill in ${file} has no name — skipping`);
+                        continue;
+                    }
 
-                        // Then attempt to initialize (warm up) in the background
-                        if (typeof skill.initialize === 'function') {
-                            await Promise.race([
-                                skill.initialize(),
-                                new Promise((_, reject) => setTimeout(() => reject(new Error(`Skill ${skill.definition.name} initialization timed out`)), ENV.MODEL_INIT_TIMEOUT))
-                            ]);
-                        }
+                    this.register(skill);
+
+                    const mdPath = file.replace(/\.js$/, '.md');
+                    try {
+                        const mdContent = await fsp.readFile(mdPath, 'utf-8');
+                        const hash = crypto.createHash('sha256').update(mdContent).digest('hex');
+                        this.instructionHashes.set(skillName, hash);
+                        this.skillMdPaths.set(skillName, mdPath);
+                        console.log(`[SkillRegistry] Attached instructions for: ${skillName} (${hash.slice(0, 8)})`);
+                    } catch {
+                        console.warn(`[SkillRegistry] No .md found for skill: ${skillName}`);
                     }
                 }
-            } catch (err) {
-                console.error(`[SkillRegistry] Failed to load skill from ${file}:`, err);
+            } catch (err: any) {
+                console.error(`[SkillRegistry] Failed to load skill from ${file}:`, err.message);
             }
         }
+
+        const registered = Array.from(this.skills.keys());
+        console.log(`[Registry] All registered skills:`, registered);
     }
 
     /**

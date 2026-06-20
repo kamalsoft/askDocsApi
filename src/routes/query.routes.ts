@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { QueryController } from '../controllers/query.controller';
 import { asyncHandler } from '../middleware/asyncHandler';
+import { validateQueryRequest } from "../middleware/validateQueryRequest";
 
 const router = Router();
 
@@ -26,7 +27,7 @@ const router = Router();
  *       500:
  *         description: Internal error
  */
-router.post('/v1/query', asyncHandler(QueryController.handleQuery));
+router.post('/v1/query', validateQueryRequest, asyncHandler(QueryController.executeQuery));
 
 /**
  * @swagger

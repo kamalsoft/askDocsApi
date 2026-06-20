@@ -6,6 +6,7 @@ import { LocalTransformerOrchestrator } from '../core/transformerEngine';
 import { QueryRequest, QueryResponse, QueryMode, SynthesisResult, VALID_MODES, Citation } from '../types';
 import { globalRegistry } from '../skills/registry';
 import { MODEL_REGISTRY } from '../config/models';
+import { sanitizeQueryResponse, QUALITY_FALLBACK_ANSWER } from "../utils/responseGuard";
 
 export class QueryController {
 
@@ -137,16 +138,74 @@ export class QueryController {
     });
   };
 
+  public static executeQuery = async (req: Request, res: Response): Promise<void> => {
+    return QueryController.handleQuery(req, res);
+  };
+
+  private static readonly NOISE_PATTERNS: RegExp[] = [
+    /licensed under the apache license/i,
+    /all rights reserved/i,
+    /copyright\s+\d{4}/i,
+    /<!--/i,
+    /hfoption|hfoptions/i
+  ];
+
+  private static isNoisyText(text: string): boolean {
+    if (!text) return true;
+    const t = text.trim();
+    if (t.length < 40) return true;
+    return QueryController.NOISE_PATTERNS.some((p) => p.test(t));
+  }
+
+  private static filterRetrieved(contextChunks: any[], citations: Citation[]) {
+    const cleanChunks = (contextChunks || []).filter((c: any) => {
+      const text = String(c?.text ?? c?.content ?? c?.snippet ?? "");
+      return !QueryController.isNoisyText(text);
+    });
+
+    const cleanCitations = (citations || []).filter((c: any) => {
+      const snippet = String(c?.snippet ?? "");
+      return !QueryController.isNoisyText(snippet);
+    });
+
+    return { cleanChunks, cleanCitations };
+  }
+
   public static handleQuery = async (req: Request, res: Response): Promise<void> => {
     try {
       const { question, mode = 'answer' }: QueryRequest = req.body;
       const correlationId = (req as any).correlationId;
 
-      // 1. Skill-based Document Retrieval
-      const { contextChunks, citations } = await globalRegistry.run('search_documents', {
+      const retrieval = await globalRegistry.run('search_documents', {
         query: question,
         correlationId
       });
+
+      const {
+        cleanChunks: contextChunks,
+        cleanCitations: citations
+      } = QueryController.filterRetrieved(retrieval.contextChunks, retrieval.citations);
+
+      if (!contextChunks.length) {
+        const fallback: QueryResponse = {
+          answer: QUALITY_FALLBACK_ANSWER,
+          citations: [],
+          score: 0,
+          correlationId,
+          metadata: {
+            timings: { total_inference_ms: 0, per_chunk: [] },
+            instructionHashes: {
+              search_documents: globalRegistry.getSkillHash('search_documents') || 'no-md-file',
+              generative_qa: globalRegistry.getSkillHash('generative_qa') || 'no-md-file',
+              summarize_text: globalRegistry.getSkillHash('summarize_text') || 'no-md-file',
+              compare_versions: globalRegistry.getSkillHash('compare_versions') || 'no-md-file',
+              extract_answer: globalRegistry.getSkillHash('extract_answer') || 'no-md-file'
+            }
+          }
+        };
+        res.status(200).json(fallback);
+        return;
+      }
 
       // 2. Skill-based Synthesis — all modes now return a consistent SynthesisResult
       const inferenceStartTime = Date.now();
@@ -212,7 +271,20 @@ export class QueryController {
         }
       };
 
-      res.status(200).json(responsePayload);
+      const safeResponse = sanitizeQueryResponse(responsePayload);
+
+      // Quality guard: fallback answer must not have high score/citations
+      if (safeResponse.answer === QUALITY_FALLBACK_ANSWER) {
+        safeResponse.score = 0;
+        safeResponse.citations = [];
+      }
+
+      if (safeResponse.citations.length === 0) {
+        safeResponse.score = Math.min(safeResponse.score, 0.2);
+      }
+
+      res.status(200).json(safeResponse);
+
     } catch (error: any) {
       console.error('Error handling query route:', error);
       res.status(500).json({
@@ -242,88 +314,13 @@ export class QueryController {
     mode: QueryMode;
     citations: Citation[];
   }): string {
-    const { answer, score, sourceContext, sourceTitle, mode, citations } = opts;
+    const { answer, score } = opts;
 
-    // --- Low-confidence decline path ---
-    // Threshold is configurable via ENV.MIN_ANSWER_CONFIDENCE (default 0.15).
-    // Returns a professionally worded message rather than a low-quality answer.
     if (score < ENV.MIN_ANSWER_CONFIDENCE) {
-      return [
-        '### Unable to Provide a Confident Response',
-        '',
-        ENV.GENERATIVE_QA_FALLBACK,
-        '',
-        sourceTitle
-          ? `> **Source reviewed:** *${sourceTitle}*`
-          : ''
-      ].filter(line => line !== undefined).join('\n');
+      return ENV.GENERATIVE_QA_FALLBACK;
     }
 
-    // --- Mode-specific titles ---
-    const modeTitles: Record<QueryMode, string> = {
-      answer:    'Documentation Response',
-      extract:   'Extracted Answer',
-      summarize: 'Documentation Summary',
-      compare:   'Version Comparison'
-    };
-    const title = modeTitles[mode] ?? 'Documentation Response';
-
-    // --- Source attribution footer (shared across all modes) ---
-    const sourceAttribution = sourceTitle
-      ? `\n---\n**Source:** *${sourceTitle}*`
-      : '';
-
-    // --- Citation reference block ---
-    // Renders up to 3 top citations as a compact reference list beneath the answer.
-    const citationBlock = citations.length > 0
-      ? [
-          '',
-          '**References:**',
-          ...citations.slice(0, 3).map(
-            // source_file falls back to source_title in case the vector store omits the field
-            c => `- ${c.snippet.trim()} — *${c.source_file || c.source_title || 'documentation'}*`
-          )
-        ].join('\n')
-      : '';
-
-    // --- Mode-specific body assembly ---
-    if (mode === 'extract') {
-      // Extractive mode: lead with the direct span in bold, then provide the
-      // surrounding source context as a blockquote for additional clarity.
-      const contextQuote = sourceContext
-        ? `\n\n> **Source Context:**\n> ${sourceContext.replace(/\n/g, '\n> ')}`
-        : '';
-
-      return [
-        `### ${title}`,
-        '',
-        `**${answer}**`,
-        contextQuote,
-        sourceAttribution,
-        citationBlock
-      ].join('\n');
-    }
-
-    if (mode === 'summarize' || mode === 'compare') {
-      // Summarize / Compare: model output is already structured — render as-is.
-      // A title and attribution are the only additions.
-      return [
-        `### ${title}`,
-        '',
-        answer,
-        sourceAttribution,
-        citationBlock
-      ].join('\n');
-    }
-
-    // --- Default: answer mode ---
-    // Full generative prose, leading directly with the answer text.
-    return [
-      `### ${title}`,
-      '',
-      answer,
-      sourceAttribution,
-      citationBlock
-    ].join('\n');
+    // Keep answer clean; UI renders citations separately.
+    return answer.trim();
   }
 }

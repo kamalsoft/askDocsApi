@@ -109,8 +109,11 @@ app.listen(PORT, async () => {
 
   try {
     // Auto-discover and register skills from the src/skills directory
-    const skillsDir = path.join(__dirname, 'skills'); // This path is correct for the glob to find nested skills
+    const skillsDir = path.join(__dirname, 'skills');
+    console.log('[App] Discovering skills in:', skillsDir);
     await globalRegistry.discoverSkills(skillsDir);
+    const registered = Array.from((globalRegistry as any).skills.keys());
+    console.log('[App] Registered skills:', registered);
 
     // Eagerly load both models (Embedding + QA) during startup
     const initTask = Promise.all([

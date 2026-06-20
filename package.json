@@ -5,7 +5,7 @@
   "main": "dist/app.js",
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/app.ts",
-    "build": "rm -rf dist && tsc",
+    "build": "rm -rf dist && npx tsc && rsync -a --prune-empty-dirs --include='*/' --include='*.md' --exclude='*' src/skills/ dist/skills/",
     "start": "node dist/app.js",
     "model:download": "tsx scripts/downloadModels.ts",
     "model:verify": "tsx scripts/verify-models.ts",
@@ -28,11 +28,11 @@
     "zod": "^3.24.2"
   },
   "devDependencies": {
-    "@types/jest": "^29.5.14",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "@types/glob": "^8.1.0",
-    "@types/node": "^25.8.0",
+    "@types/jest": "^29.5.14",
+    "@types/node": "^25.9.4",
     "@types/swagger-jsdoc": "^6.0.4",
     "@types/swagger-ui-express": "^4.1.8",
     "@types/uuid": "^10.0.0",

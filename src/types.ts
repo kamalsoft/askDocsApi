@@ -37,7 +37,8 @@ export interface SynthesisResult {
   score: number;
   sourceContext: string;
   sourceTitle: string;
-  timings: ChunkTiming[];
+  citations?: Citation[];
+  timings: Array<{ label: string; ms: number }>;
 }
 
 export const VALID_MODES = ['answer', 'summarize', 'compare', 'extract'] as const;

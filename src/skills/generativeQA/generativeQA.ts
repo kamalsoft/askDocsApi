@@ -2,6 +2,8 @@ import { BaseSkill, SkillDefinition, SynthesisResult } from '../../types';
 import { pipeline } from '@huggingface/transformers';
 import { ENV } from '../../config/env';
 import { renderTemplate } from '../../utils/renderTemplate';
+import fs from 'fs/promises';
+import path from 'path';
 
 export class GenerativeQASkill extends BaseSkill {
     readonly definition: SkillDefinition = {
@@ -22,8 +24,39 @@ export class GenerativeQASkill extends BaseSkill {
     };
 
     private generator: any = null;
-    // In-flight promise to prevent concurrent model loads (race condition guard)
     private initializingPromise: Promise<void> | null = null;
+    private promptTemplate: string | null = null;
+
+    private extractPromptTemplate(markdown: string): string {
+        const fenced = markdown.match(/```(?:prompt|text)?\s*([\s\S]*?)```/i);
+        return (fenced?.[1] ?? markdown).trim();
+    }
+
+    private async loadPromptTemplate(): Promise<void> {
+        if (this.promptTemplate) return;
+
+        const candidates = [
+            path.resolve(__dirname, 'generativeQA.md'),
+            path.resolve(process.cwd(), 'dist/skills/generativeQA/generativeQA.md'),
+            path.resolve(process.cwd(), 'src/skills/generativeQA/generativeQA.md'),
+        ];
+
+        for (const filePath of candidates) {
+            try {
+                const markdown = await fs.readFile(filePath, 'utf8');
+                const extracted = this.extractPromptTemplate(markdown);
+                if (extracted) {
+                    this.promptTemplate = extracted;
+                    return;
+                }
+            } catch {
+                // try next candidate
+            }
+        }
+
+        // safety fallback
+        this.promptTemplate = ENV.GENERATIVE_QA_PROMPT;
+    }
 
     async initialize(): Promise<void> {
         if (this.generator) return;
@@ -31,7 +64,10 @@ export class GenerativeQASkill extends BaseSkill {
             await this.initializingPromise;
             return;
         }
+
         this.initializingPromise = (async () => {
+            await this.loadPromptTemplate();
+
             const modelId = ENV.GENERATIVE_MODEL;
             this.generator = await pipeline('text2text-generation', modelId, {
                 dtype: ENV.GENERATIVE_QUANTIZED ? 'q8' : 'fp32',
@@ -41,6 +77,7 @@ export class GenerativeQASkill extends BaseSkill {
                 device: 'cpu'
             });
         })();
+
         await this.initializingPromise;
         this.initializingPromise = null;
     }
@@ -68,8 +105,7 @@ export class GenerativeQASkill extends BaseSkill {
 
         await this.initialize();
 
-        // Render the prompt using global-replace template engine (handles multi-occurrence placeholders)
-        const prompt = renderTemplate(ENV.GENERATIVE_QA_PROMPT, {
+        const prompt = renderTemplate(this.promptTemplate || ENV.GENERATIVE_QA_PROMPT, {
             fallback: ENV.GENERATIVE_QA_FALLBACK,
             context,
             question,
