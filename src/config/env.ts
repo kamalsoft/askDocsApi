@@ -34,19 +34,48 @@ export const ENV = {
   MIN_CONFIDENCE_THRESHOLD: parseFloat(process.env.MIN_CONFIDENCE_THRESHOLD || '0.25'),
   // Jaccard similarity threshold for removing near-duplicate context (default 0.8)
   NEAR_DUPLICATE_THRESHOLD: parseFloat(process.env.NEAR_DUPLICATE_THRESHOLD || '0.8'),
+  // Minimum answer grounding score to consider a synthesis result valid.
+  // Answers below this threshold receive a professional decline response instead.
+  MIN_ANSWER_CONFIDENCE: parseFloat(process.env.MIN_ANSWER_CONFIDENCE || '0.15'),
   
   // --- Search Optimization ---
   EMBEDDING_MODEL: 'Xenova/all-MiniLM-L6-v2',
   GENERATIVE_MODEL: 'Xenova/flan-t5-small', 
   SUMMARIZATION_MODEL: 'Xenova/flan-t5-small', 
-  GENERATIVE_QA_PROMPT: process.env.GENERATIVE_QA_PROMPT || 
-    `answer the question using the context below. if the answer is not in the context, say "{fallback}"\n\ncontext: {context}\n\nquestion: {question}`,
+  GENERATIVE_QA_PROMPT: process.env.GENERATIVE_QA_PROMPT ||
+    `You are a professional technical documentation assistant. Your role is to provide clear, accurate, and well-structured answers based strictly on the documentation provided below.
+
+INSTRUCTIONS:
+- Answer in a professional business tone suitable for developers and technical stakeholders.
+- Lead with a direct, concise answer to the question, then provide supporting detail.
+- Use numbered steps for procedural or sequential content. Use bullet points for lists of attributes, options, or features.
+- Reference specific section names, configuration keys, or version numbers when they appear in the context.
+- If the answer cannot be determined from the provided documentation context, respond only with: "{fallback}"
+- Do not speculate, invent facts, or draw on general knowledge outside the context.
+
+DOCUMENTATION CONTEXT:
+{context}
+
+QUESTION:
+{question}
+
+ANSWER:`,
   SUMMARIZATION_PROMPT: process.env.SUMMARIZATION_PROMPT ||
-    `summarize the following text regarding "{question}". use bullet points.\n\ntext: {context}`,
+    `Produce a concise executive summary of the following technical documentation. Structure the output with a one-sentence overview followed by key points as bullet items. Preserve all technical terms, version numbers, configuration keys, and error codes exactly as written. Do not add information not present in the source text.
+
+DOCUMENTATION:
+{context}
+
+SUMMARY:`,
   COMPARISON_PROMPT: process.env.COMPARISON_PROMPT ||
-    `compare the differences in the following text regarding "{question}"\n\ntext: {context}`,
-  GENERATIVE_QA_FALLBACK: process.env.GENERATIVE_QA_FALLBACK || 
-    "I'm sorry, I couldn't find a definitive answer in the documentation.",
+    `You are a technical documentation analyst. Compare the documentation sections provided below. Identify key differences, updates, deprecated behaviours, and breaking changes. Present your findings as a structured Markdown table where applicable. Label entries with their source section or version identifier. Use professional language: "introduced in", "deprecated as of", "superseded by". Prefix breaking changes with [Breaking].
+
+DOCUMENTATION SECTIONS:
+{context}
+
+COMPARISON:`,
+  GENERATIVE_QA_FALLBACK: process.env.GENERATIVE_QA_FALLBACK ||
+    'We were unable to locate a sufficiently confident answer to your query within the available documentation. Please consider rephrasing your question or consulting the relevant documentation section directly.',
   
   BM25_WEIGHT: parseFloat(process.env.BM25_WEIGHT || '0.3'),
   SEMANTIC_WEIGHT: parseFloat(process.env.SEMANTIC_WEIGHT || '0.7'),

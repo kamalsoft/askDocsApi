@@ -27,6 +27,19 @@ export interface ChunkTiming {
   ms: number;
 }
 
+/**
+ * Shared return contract for all synthesis skills (generative_qa, extract_answer,
+ * summarize_text, compare_versions). Every skill's execute() must resolve to this shape
+ * so the query controller can destructure fields without runtime `undefined` surprises.
+ */
+export interface SynthesisResult {
+  answer: string;
+  score: number;
+  sourceContext: string;
+  sourceTitle: string;
+  timings: ChunkTiming[];
+}
+
 export const VALID_MODES = ['answer', 'summarize', 'compare', 'extract'] as const;
 export type QueryMode = typeof VALID_MODES[number];
 

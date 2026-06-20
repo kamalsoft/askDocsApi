@@ -11,6 +11,7 @@ import { loggerMiddleware } from './middleware/logger.middleware';
 import { RetrievalEngine } from './core/engine';
 import { QueryController } from './controllers/query.controller';
 import { globalRegistry } from './skills/registry';
+import vectorSourceRoutes from "./routes/vectorSource.routes";
 
 const app = express();
 
@@ -48,8 +49,9 @@ app.use(express.urlencoded({ extended: true, limit: '10mb' }));
  */
 app.get('/health', QueryController.healthCheck);
 
-// Inject the routing structure under the /api mount path namespace
+// Keep all API routes under /api/v1
 app.use('/api', queryRoutes);
+app.use('/api/v1/vector-source', vectorSourceRoutes);
 
 // Configure swagger-jsdoc for schema extraction
 const swaggerOptions = {

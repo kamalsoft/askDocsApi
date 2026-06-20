@@ -42,6 +42,16 @@ export class QuestionAnsweringSkill extends BaseSkill {
             };
         }
 
-        return await LocalTransformerOrchestrator.extractAnswer(refinedQuestion, validChunks, correlationId || '');
+        return await LocalTransformerOrchestrator.extractAnswer(refinedQuestion, validChunks, correlationId || '')
+            .then(raw => ({
+                answer: raw.answer,
+                score: raw.score,
+                // Normalize field names to match the SynthesisResult contract.
+                // LocalTransformerOrchestrator uses sourceContent/sourceLabel/per_chunk;
+                // the query controller expects sourceContext/sourceTitle/timings.
+                sourceContext: raw.sourceContent,
+                sourceTitle: raw.sourceLabel,
+                timings: raw.per_chunk,
+            }));
     }
 }

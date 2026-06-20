@@ -3,7 +3,7 @@ import fs from 'fs';
 import { ENV } from '../config/env';
 import { RetrievalEngine } from '../core/engine';
 import { LocalTransformerOrchestrator } from '../core/transformerEngine';
-import { QueryRequest, QueryResponse, VALID_MODES, ChunkTiming } from '../types';
+import { QueryRequest, QueryResponse, QueryMode, SynthesisResult, VALID_MODES, Citation } from '../types';
 import { globalRegistry } from '../skills/registry';
 import { MODEL_REGISTRY } from '../config/models';
 
@@ -140,95 +140,63 @@ export class QueryController {
   public static handleQuery = async (req: Request, res: Response): Promise<void> => {
     try {
       const { question, mode = 'answer' }: QueryRequest = req.body;
-      
       const correlationId = (req as any).correlationId;
 
       // 1. Skill-based Document Retrieval
-      const { contextChunks, citations } = await globalRegistry.run('search_documents', { 
-        query: question, 
-        correlationId 
+      const { contextChunks, citations } = await globalRegistry.run('search_documents', {
+        query: question,
+        correlationId
       });
 
-      // 2. Skill-based Synthesis, Summarization, or Comparison
+      // 2. Skill-based Synthesis — all modes now return a consistent SynthesisResult
       const inferenceStartTime = Date.now();
-      let synthesisResult;
+      let synthesisResult: SynthesisResult;
 
       if (mode === 'summarize') {
-        const { summary } = await globalRegistry.run('summarize_text', {
+        synthesisResult = await globalRegistry.run('summarize_text', {
           text: contextChunks,
           correlationId
         });
-
-        synthesisResult = {
-          answer: summary,
-          score: 1.0, // Summaries are considered high confidence by default
-          sourceContext: contextChunks.map((c: any) =>
-            typeof c === 'string' ? c : (c?.text || '')
-          ).join('\n---\n'),
-          sourceTitle: "Technical Documentation Summary",
-          timings: [{ label: 'summarization', ms: Date.now() - inferenceStartTime }] as ChunkTiming[]
-        };
       } else if (mode === 'extract') {
-        // Using the extract_answer skill which connects to the LocalTransformerOrchestrator
-        synthesisResult = await globalRegistry.run('extract_answer', { 
-          question, 
-          contextChunks, 
-          correlationId 
+        synthesisResult = await globalRegistry.run('extract_answer', {
+          question,
+          contextChunks,
+          correlationId
         });
       } else if (mode === 'compare') {
-        synthesisResult = await globalRegistry.run('compare_versions', { 
+        synthesisResult = await globalRegistry.run('compare_versions', {
           contextChunks,
-          correlationId 
+          correlationId
         });
       } else {
-        synthesisResult = await globalRegistry.run('generative_qa', { 
-          question, 
-          contextChunks, 
-          correlationId 
+        synthesisResult = await globalRegistry.run('generative_qa', {
+          question,
+          contextChunks,
+          correlationId
         });
       }
-      
+
       const { answer, score, sourceContext, sourceTitle, timings } = synthesisResult;
-      
       const totalInferenceMs = Date.now() - inferenceStartTime;
 
       // Collect instruction hashes for all core RAG pipeline skills
       const instructionHashes: Record<string, string> = {
         search_documents: globalRegistry.getSkillHash('search_documents') || 'no-md-file',
-        generative_qa: globalRegistry.getSkillHash('generative_qa') || 'no-md-file',
-        summarize_text: globalRegistry.getSkillHash('summarize_text') || 'no-md-file',
+        generative_qa:    globalRegistry.getSkillHash('generative_qa')    || 'no-md-file',
+        summarize_text:   globalRegistry.getSkillHash('summarize_text')   || 'no-md-file',
         compare_versions: globalRegistry.getSkillHash('compare_versions') || 'no-md-file',
-        extract_answer: globalRegistry.getSkillHash('extract_answer') || 'no-md-file'
+        extract_answer:   globalRegistry.getSkillHash('extract_answer')   || 'no-md-file'
       };
 
-      // 3. Validation Logic
-      let finalAnswer: string;
-      
-      if (score < 0.01) {
-        finalAnswer = "I'm sorry, I couldn't find a definitive answer in the documentation.";
-      } else {
-        // Escape the answer for safe use in a Regular Expression
-        const escapedAnswer = answer.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        
-        // Attempt to highlight. If it's a generative summary, it might not match exactly.
-        const canHighlight = new RegExp(`(${escapedAnswer})`, 'gi').test(sourceContext);
-        const highlightedContext = canHighlight 
-          ? sourceContext.replace(new RegExp(`(${escapedAnswer})`, 'gi'), '**$1**')
-          : sourceContext;
-
-        // Adjust headers based on mode
-        const modeHeaders: Record<string, string> = { 
-          summarize: "Documentation Summary", 
-          compare: "Version Comparison", 
-          extract: "Extracted Answer",
-          answer: canHighlight ? "Extracted Answer" : "AI Response" 
-        };
-        const header = modeHeaders[mode] || modeHeaders.answer;
-        const contextLabel = canHighlight ? "Context for clarification" : "Source Reference";
-        
-        // Enhance the short extractive answer with the surrounding context for clarification
-        finalAnswer = `### ${header}\n**${answer}**\n\nSource: *${sourceTitle}*\n\n> **${contextLabel}:**\n> ${highlightedContext.replace(/\n/g, '\n> ')}`;
-      }
+      // 3. Format the final answer with a consistent, professional business layout
+      const finalAnswer = QueryController.formatResponse({
+        answer,
+        score,
+        sourceContext,
+        sourceTitle,
+        mode: mode as QueryMode,
+        citations
+      });
 
       const responsePayload: QueryResponse = {
         answer: finalAnswer,
@@ -247,10 +215,115 @@ export class QueryController {
       res.status(200).json(responsePayload);
     } catch (error: any) {
       console.error('Error handling query route:', error);
-      res.status(500).json({ 
+      res.status(500).json({
         error: 'An internal error occurred while processing the RAG pipeline request.',
-        details: error.message 
+        details: error.message
       });
     }
   };
+
+  /**
+   * Formats a SynthesisResult into a consistent, business-grade Markdown string.
+   *
+   * Rules per mode:
+   *  - answer    → Titled "Documentation Response"; full prose answer; source attribution line
+   *  - extract   → Titled "Extracted Answer"; answer in bold; context blockquote beneath
+   *  - summarize → Titled "Documentation Summary"; model output rendered as-is (already structured)
+   *  - compare   → Titled "Version Comparison"; model output rendered as-is (table/list format)
+   *
+   * Low-confidence path (score < MIN_ANSWER_CONFIDENCE): returns a professional decline message
+   * regardless of mode, preserving the source attribution for transparency.
+   */
+  private static formatResponse(opts: {
+    answer: string;
+    score: number;
+    sourceContext: string;
+    sourceTitle: string;
+    mode: QueryMode;
+    citations: Citation[];
+  }): string {
+    const { answer, score, sourceContext, sourceTitle, mode, citations } = opts;
+
+    // --- Low-confidence decline path ---
+    // Threshold is configurable via ENV.MIN_ANSWER_CONFIDENCE (default 0.15).
+    // Returns a professionally worded message rather than a low-quality answer.
+    if (score < ENV.MIN_ANSWER_CONFIDENCE) {
+      return [
+        '### Unable to Provide a Confident Response',
+        '',
+        ENV.GENERATIVE_QA_FALLBACK,
+        '',
+        sourceTitle
+          ? `> **Source reviewed:** *${sourceTitle}*`
+          : ''
+      ].filter(line => line !== undefined).join('\n');
+    }
+
+    // --- Mode-specific titles ---
+    const modeTitles: Record<QueryMode, string> = {
+      answer:    'Documentation Response',
+      extract:   'Extracted Answer',
+      summarize: 'Documentation Summary',
+      compare:   'Version Comparison'
+    };
+    const title = modeTitles[mode] ?? 'Documentation Response';
+
+    // --- Source attribution footer (shared across all modes) ---
+    const sourceAttribution = sourceTitle
+      ? `\n---\n**Source:** *${sourceTitle}*`
+      : '';
+
+    // --- Citation reference block ---
+    // Renders up to 3 top citations as a compact reference list beneath the answer.
+    const citationBlock = citations.length > 0
+      ? [
+          '',
+          '**References:**',
+          ...citations.slice(0, 3).map(
+            // source_file falls back to source_title in case the vector store omits the field
+            c => `- ${c.snippet.trim()} — *${c.source_file || c.source_title || 'documentation'}*`
+          )
+        ].join('\n')
+      : '';
+
+    // --- Mode-specific body assembly ---
+    if (mode === 'extract') {
+      // Extractive mode: lead with the direct span in bold, then provide the
+      // surrounding source context as a blockquote for additional clarity.
+      const contextQuote = sourceContext
+        ? `\n\n> **Source Context:**\n> ${sourceContext.replace(/\n/g, '\n> ')}`
+        : '';
+
+      return [
+        `### ${title}`,
+        '',
+        `**${answer}**`,
+        contextQuote,
+        sourceAttribution,
+        citationBlock
+      ].join('\n');
+    }
+
+    if (mode === 'summarize' || mode === 'compare') {
+      // Summarize / Compare: model output is already structured — render as-is.
+      // A title and attribution are the only additions.
+      return [
+        `### ${title}`,
+        '',
+        answer,
+        sourceAttribution,
+        citationBlock
+      ].join('\n');
+    }
+
+    // --- Default: answer mode ---
+    // Full generative prose, leading directly with the answer text.
+    return [
+      `### ${title}`,
+      '',
+      answer,
+      sourceAttribution,
+      citationBlock
+    ].join('\n');
+  }
 }

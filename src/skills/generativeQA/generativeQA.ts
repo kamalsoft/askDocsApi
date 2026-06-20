@@ -1,11 +1,12 @@
-import { BaseSkill, SkillDefinition } from '../../types';
+import { BaseSkill, SkillDefinition, SynthesisResult } from '../../types';
 import { pipeline } from '@huggingface/transformers';
 import { ENV } from '../../config/env';
+import { renderTemplate } from '../../utils/renderTemplate';
 
 export class GenerativeQASkill extends BaseSkill {
     readonly definition: SkillDefinition = {
         name: 'generative_qa',
-        description: 'Answers a question by synthesizing information strictly from the provided context. Follows constraints to avoid irrelevant answers.',
+        description: 'Answers a question by synthesizing information strictly from the provided documentation context, using a professional business tone.',
         parameters: {
             question: {
                 type: 'string',
@@ -21,9 +22,16 @@ export class GenerativeQASkill extends BaseSkill {
     };
 
     private generator: any = null;
+    // In-flight promise to prevent concurrent model loads (race condition guard)
+    private initializingPromise: Promise<void> | null = null;
 
     async initialize(): Promise<void> {
-        if (!this.generator) {
+        if (this.generator) return;
+        if (this.initializingPromise) {
+            await this.initializingPromise;
+            return;
+        }
+        this.initializingPromise = (async () => {
             const modelId = ENV.GENERATIVE_MODEL;
             this.generator = await pipeline('text2text-generation', modelId, {
                 dtype: ENV.GENERATIVE_QUANTIZED ? 'q8' : 'fp32',
@@ -32,10 +40,12 @@ export class GenerativeQASkill extends BaseSkill {
                 },
                 device: 'cpu'
             });
-        }
+        })();
+        await this.initializingPromise;
+        this.initializingPromise = null;
     }
 
-    async execute(args: { question: string; contextChunks: any[]; correlationId?: string; streamer?: any }): Promise<any> {
+    async execute(args: { question: string; contextChunks: any[]; correlationId?: string; streamer?: any }): Promise<SynthesisResult> {
         const { question, contextChunks, correlationId, streamer } = args;
         const startTime = Date.now();
 
@@ -45,33 +55,39 @@ export class GenerativeQASkill extends BaseSkill {
             .filter(t => t && t.trim().length > 0)
             .join('\n---\n') || '';
 
-        // Defensive check: If no context or question, use the requested fallback
+        // Defensive check: if no context or question, use the configured fallback
         if (!question?.trim() || !context) {
             return {
                 answer: ENV.GENERATIVE_QA_FALLBACK,
-                score: 0
+                score: 0,
+                sourceContext: context,
+                sourceTitle: 'No Relevant Documentation',
+                timings: [{ label: 'synthesis', ms: Date.now() - startTime }]
             };
         }
 
         await this.initialize();
 
-        // Construct the prompt from the configured template
-        const prompt = ENV.GENERATIVE_QA_PROMPT
-            .replace('{fallback}', ENV.GENERATIVE_QA_FALLBACK)
-            .replace('{context}', context)
-            .replace('{question}', question);
+        // Render the prompt using global-replace template engine (handles multi-occurrence placeholders)
+        const prompt = renderTemplate(ENV.GENERATIVE_QA_PROMPT, {
+            fallback: ENV.GENERATIVE_QA_FALLBACK,
+            context,
+            question,
+        });
 
         const output = await this.generator(prompt, {
-            max_new_tokens: 150,
-            temperature: 0.1, // Low temperature ensures more factual/deterministic responses
-            repetition_penalty: 1.2,
+            max_new_tokens: 300,         // Raised from 150 — allows fuller, well-structured business responses
+            temperature: 0.1,             // Low temperature for factual/deterministic output
+            repetition_penalty: 1.3,      // Slightly raised to discourage model looping on structured prompts
             streamer: streamer,
         });
 
         if (!output || !output[0]) {
             return {
-                answer: "I encountered an error while generating an answer. Please try again.",
+                answer: 'An error occurred while generating the response. Please try your query again.',
                 score: 0,
+                sourceContext: context,
+                sourceTitle: 'Generation Error',
                 timings: [{ label: 'synthesis', ms: Date.now() - startTime }]
             };
         }
@@ -83,30 +99,58 @@ export class GenerativeQASkill extends BaseSkill {
             answer,
             score,
             sourceContext: context,
-            sourceTitle: "AI Synthesized Response",
+            sourceTitle: 'AI Synthesized Response',
             timings: [{ label: 'synthesis', ms: Date.now() - startTime }]
         };
     }
 
     /**
-     * Calculates a grounding score (0.0 to 1.0) based on word overlap.
-     * Verified that significant words in the answer exist in the source context.
+     * Calculates a grounding score (0.0 to 1.0) based on significant-word overlap
+     * between the generated answer and the source context.
+     *
+     * Improvements over the original:
+     * - Expanded stop-word list removes domain-generic terms that inflate scores
+     * - Answers shorter than 5 significant words return 0.5 (uncertain) not 1.0
+     * - Immediate 0.0 for answers matching the fallback phrase
      */
     private calculateGroundingScore(answer: string, context: string): number {
-        if (answer.trim() === ENV.GENERATIVE_QA_FALLBACK || answer.toLowerCase().includes("please ask a valid question")) return 0.0;
+        // Immediately score as ungrounded if the answer is a fallback message
+        if (
+            answer.trim() === ENV.GENERATIVE_QA_FALLBACK ||
+            answer.toLowerCase().includes('unable to locate') ||
+            answer.toLowerCase().includes('please ask a valid question')
+        ) {
+            return 0.0;
+        }
 
-        const normalize = (text: string) => 
-            text.toLowerCase()
-                .replace(/[^\w\s]/g, '') // Remove punctuation
-                .split(/\s+/)            // Split into words
-                .filter(w => w.length > 3); // Ignore short/stop words like 'is', 'the', 'and'
+        // English function words + domain-generic terms that appear in almost any tech doc
+        const STOP_WORDS = new Set([
+            'the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been', 'being',
+            'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could',
+            'should', 'may', 'might', 'shall', 'can', 'need', 'used', 'to', 'of',
+            'in', 'for', 'on', 'with', 'at', 'by', 'from', 'as', 'into', 'through',
+            'that', 'this', 'these', 'those', 'and', 'or', 'but', 'if', 'then',
+            'when', 'where', 'which', 'who', 'whom', 'what', 'how', 'not', 'also',
+            // Domain-generic terms that appear across all tech docs (inflate score)
+            'system', 'user', 'data', 'information', 'following', 'using', 'based',
+            'provided', 'each', 'all', 'any', 'more', 'new', 'set', 'get', 'list',
+            'value', 'number', 'type', 'name', 'note', 'example', 'below', 'above'
+        ]);
+
+        const normalize = (text: string): string[] =>
+            text
+                .toLowerCase()
+                .replace(/[^\w\s]/g, '')
+                .split(/\s+/)
+                .filter(w => w.length > 3 && !STOP_WORDS.has(w));
 
         const answerWords = normalize(answer);
-        if (answerWords.length === 0) return 1.0; // If answer is too short to verify, assume okay or handle specifically
+
+        // Too short to meaningfully verify grounding — return uncertain mid-score
+        if (answerWords.length < 5) return 0.5;
 
         const contextWords = new Set(normalize(context));
         const matches = answerWords.filter(word => contextWords.has(word));
-
         return matches.length / answerWords.length;
     }
 }

@@ -297,6 +297,8 @@ export class RetrievalEngine {
     }
     mA = Math.sqrt(mA);
     mB = Math.sqrt(mB);
+    // Guard against zero-magnitude vectors (malformed or empty embeddings) to prevent NaN scores
+    if (mA === 0 || mB === 0) return 0;
     return dotProduct / (mA * mB);
   }
 
@@ -442,8 +444,10 @@ export class RetrievalEngine {
     console.log(`[${correlationId}] BM25 scoring completed in ${scoringDuration}ms`);
 
     const citations: Citation[] = sorted.map((item) => ({
-      source_file: item.doc.file,
-      source_title: item.doc.heading || 'General Documentation',
+      // Guard: doc.file may be undefined in vector stores built without the field set.
+      // Fall back through heading then a generic label so source_file is never undefined.
+      source_file: item.doc.file || item.doc.heading || 'documentation',
+      source_title: item.doc.heading || item.doc.file || 'General Documentation',
       chunk_id: item.doc.id,
       score: parseFloat(item.rerankScore.toFixed(6)),
       snippet: item.doc.text.substring(0, 180).replace(/\s+/g, ' ') + '...'
